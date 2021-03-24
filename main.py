@@ -9,9 +9,13 @@ import cv2
 from operator import itemgetter
 import numpy as np
 from flask import Flask
+#from flask_sqlalchemy import SQLAlchemy
 import folium
 
+
 app = Flask(__name__)
+#app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///data.db'
+#db = SQLAlchemy(app)
 
 activites_url = "https://www.strava.com/api/v3/athlete/activities"
 
@@ -51,7 +55,6 @@ def first_auth(code):
         data = json.load(check)
     #print(data)
     return strava_tokens
-
 
 
 def refresh_auth(strava_tokens):
@@ -112,8 +115,17 @@ def check_response(response):
             print("ERROR:\t{}: {}".format(error["resource"],error["code"]))
         exit()
 
-class Activity:
+#class Activity(db.Model):
+class Activity():
     #constructor
+    #id = db.Column(db.Integer, primary_key=True, unique = True)
+    #activity_id = db.Column(db.String(80))
+    #name = db.Column(db.String(80), unique = False, nullable = False)
+    #polyline = 
+
+    #def __repr__(self):
+    #    return f"Activity {self.id} - {self.name}"
+
     def __init__(self, id):
         print("INFO:\tRetrieving activity ID: {}".format(id))
         url = "https://www.strava.com/api/v3/activities/{}?".format(id)
@@ -170,17 +182,33 @@ class Activity:
             cv2.waitKey(0)
             cv2.destroyAllWindows()
 
+
+def create_db():
+    db.create_all()
+
+def add_activity_db():
+    activity = Activity(id = 12, name = "Activity 1")
+    activity2 = Activity(id = 12, name = "Activity 2")
+    print(activity)
+    print(activity2)
+    db.session.add(activity)
+    db.session.add(activity2)
+    db.session.commit()
+    print(activity2)
+    print(activity)
+
+
 @app.route('/')
 def index():
-    start_coords = (48.040700, 2.7360300)
+    start_coords = (48.855, 2.3433)
     #line = [(46.9540700, 142.7360300), (46.5940700, 142.3760300)]
-    folium_map = folium.Map(location=start_coords, zoom_start=10)
-    for activity in activities:
-        a = Activity(activity["id"])
-        line = polyline.decode(a.get_polyline())
-        folium.PolyLine(line).add_to(folium_map)
-
-    return folium_map._repr_html_()
+    folium_map = folium.Map(location=start_coords, zoom_start=13)
+    #for activity in activities:
+    #    a = Activity(activity["id"])
+    #    line = polyline.decode(a.get_polyline())
+    #    folium.PolyLine(line).add_to(folium_map)
+    #yield("BLABLABLA")
+    return ("BLABLABLA\n\n\n")+folium_map._repr_html_()
     
 if __name__ == "__main__":
     if startupCheck("strava_tokens.json"):
@@ -193,10 +221,17 @@ if __name__ == "__main__":
             print("INFO:\tTokens are up to date. Next refresh in {} minutes".format(round((strava_tokens['expires_at'] - time.time())/60.0,2)))
         print("INFO:\tAccess token: {}".format(access_token))
 
-        activities = get_my_activities(access_token,per_page=30)
-
+        activities = get_my_activities(access_token,per_page=200)
+        
+        #print(len(activities))
+        #exit()
         #a1 = Activity(activities[0]["id"])
         #a1.print_activity_map_cv()
+
+        #db.drop_all(bind=None)
+        #create_db()
+        #add_activity_db()
+        #Activity.query.all()
 
         app.run(debug=True)
 
