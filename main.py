@@ -8,7 +8,7 @@ import polyline
 import cv2
 from operator import itemgetter
 import numpy as np
-from flask import Flask
+from flask import Flask, render_template
 #from flask_sqlalchemy import SQLAlchemy
 import folium
 
@@ -95,10 +95,16 @@ def get_my_data(access_token):
 def get_my_activities(access_token,before = False, after = False, page = False, per_page = False):
     print("INFO:\tRetrieving athlete activities")
     url = "https://www.strava.com/api/v3/activities?"
+    if page:
+        url += "page={}&".format(page)
     if per_page:
-        url += "per_page={}?".format(per_page)
+        url += "per_page={}&".format(per_page)
+    url = url[:-1]
+    print(url)
     r = requests.get(url, data = {"access_token":access_token})
-    check_response(r)
+    if check_response(r) == False:
+        return 0
+    
     with open('my_activities.json', 'w') as outfile:
         json.dump(r.json(), outfile, sort_keys=True,)
     
@@ -108,12 +114,17 @@ def get_my_activities(access_token,before = False, after = False, page = False, 
 def check_response(response):
     if response.ok:
         print("INFO:\tSuccessfully retrieved request")
+        return True
     else:
         errors = response.json()["errors"]
-        print("INFO:\tRequest isn't retrieved succesfully. Nb of errors: {}. Exiting...".format(len(errors)))
+        print("INFO:\tRequest isn't retrieved succesfully. Nb of errors: {}.".format(len(errors)))
         for error in errors:
             print("ERROR:\t{}: {}".format(error["resource"],error["code"]))
-        exit()
+            if error["resource"] == "Application" and error["code"] == "exceeded":
+                print("ERROR:\tWait 15 minutes for the query limit to renew")
+            return False
+
+        #exit()
 
 #class Activity(db.Model):
 class Activity():
@@ -134,9 +145,31 @@ class Activity():
 
         self.data = r.json()
         self.polyline = r.json()["map"]["polyline"]
+        self.id = r.json()["id"]
+        self.name = r.json()["name"]
+        self.distance = r.json()["distance"]
+        self.type = r.json()["type"]
+        self.start_date_local = r.json()["start_date_local"]
+
+    def get_activity_id(self):
+        return self.id
+
+    def get_activity_dict(self):
+        act_dict = {
+            self.id: 
+            {
+                "id": self.id,
+                "name": self.name,
+                "distance": self.distance,
+                "type": self.type,
+                "start_date_local": self.start_date_local,
+                "polyline": self.polyline
+            }
+        }
+        return act_dict
 
     def get_polyline(self):
-        return self.polyline
+        return (self.polyline)
 
     def print_activity_map_cv(self, show = False):
         print("INFO:\tRetrieving activity ID: {}".format(id))
@@ -182,10 +215,29 @@ class Activity():
             cv2.waitKey(0)
             cv2.destroyAllWindows()
 
+def update_activities_json():
+    page = 10
+
+    activities_list = get_my_activities(access_token,per_page=200, page = 3)
+    if activities_list == 0:
+        return 0
+
+    for activity in activities_list:
+        with open('activities.json', "r+") as json_file:
+            data = json.load(json_file)
+            if str(activity["id"]) not in data:
+                a = Activity(activity["id"])
+                data[activity["id"]]=a.get_activity_dict()[activity["id"]]
+
+                json_file.seek(0)
+                json.dump(data, json_file, indent=4)
+            else:
+                print("INFO:\tAvtivity {} is already in the database".format(activity["id"]))
 
 def create_db():
     db.create_all()
 
+'''
 def add_activity_db():
     activity = Activity(id = 12, name = "Activity 1")
     activity2 = Activity(id = 12, name = "Activity 2")
@@ -196,19 +248,28 @@ def add_activity_db():
     db.session.commit()
     print(activity2)
     print(activity)
+'''
+
+@app.route('/activities_on_map/')
+def activities_on_map():
+    start_coords = (48.855, 2.3433)
+    folium_map = folium.Map(location=start_coords, zoom_start=13)
+    with open('activities.json', "r") as json_file:
+        data = json.load(json_file)
+        print(len(data))
+    for activity_id in data:
+        if data[activity_id]["polyline"] == None:
+            continue
+        line = polyline.decode(data[activity_id]["polyline"])
+        if len(line) == 0:
+            continue
+        folium.PolyLine(line).add_to(folium_map)
+    return folium_map._repr_html_()
 
 
 @app.route('/')
 def index():
-    start_coords = (48.855, 2.3433)
-    #line = [(46.9540700, 142.7360300), (46.5940700, 142.3760300)]
-    folium_map = folium.Map(location=start_coords, zoom_start=13)
-    #for activity in activities:
-    #    a = Activity(activity["id"])
-    #    line = polyline.decode(a.get_polyline())
-    #    folium.PolyLine(line).add_to(folium_map)
-    #yield("BLABLABLA")
-    return ("BLABLABLA\n\n\n")+folium_map._repr_html_()
+    return render_template('index.html')
     
 if __name__ == "__main__":
     if startupCheck("strava_tokens.json"):
@@ -221,7 +282,11 @@ if __name__ == "__main__":
             print("INFO:\tTokens are up to date. Next refresh in {} minutes".format(round((strava_tokens['expires_at'] - time.time())/60.0,2)))
         print("INFO:\tAccess token: {}".format(access_token))
 
-        activities = get_my_activities(access_token,per_page=200)
+        #update_activities_json()
+        
+        app.run(debug=True)
+        
+        #update_activities_json()
         
         #print(len(activities))
         #exit()
@@ -232,8 +297,22 @@ if __name__ == "__main__":
         #create_db()
         #add_activity_db()
         #Activity.query.all()
+        
+        # new_1 = {"d":"4"}
 
-        app.run(debug=True)
+        # with open('activities.json', "r+") as json_file:
+        #     data = json.load(json_file)
+        #     if data == None:
+        #         print("It's none")
+        #     if "key 3" in data:
+        #         print("IN1")
+        #     data["key 3"]={"id": "3", "name":"blabla"}
+        #     if "key 3" in data:
+        #         print("IN2")
+        #     json_file.seek(0)
+        #     json.dump(data, json_file, indent=4)
+
+
 
         #one_activity = get_activity_by_id(activities[0]["id"])
         #print_activity_map(one_activity)
