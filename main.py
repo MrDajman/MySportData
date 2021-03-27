@@ -8,7 +8,7 @@ import polyline
 import cv2
 from operator import itemgetter
 import numpy as np
-from flask import Flask, render_template
+from flask import Flask, render_template, request
 #from flask_sqlalchemy import SQLAlchemy
 import folium
 
@@ -124,7 +124,7 @@ def check_response(response):
                 print("ERROR:\tWait 15 minutes for the query limit to renew")
             return False
 
-        #exit()
+        #exit() 
 
 #class Activity(db.Model):
 class Activity():
@@ -218,7 +218,7 @@ class Activity():
 def update_activities_json():
     page = 10
 
-    activities_list = get_my_activities(access_token,per_page=200, page = 3)
+    activities_list = get_my_activities(access_token,per_page=200, page = 4)
     if activities_list == 0:
         return 0
 
@@ -237,19 +237,6 @@ def update_activities_json():
 def create_db():
     db.create_all()
 
-'''
-def add_activity_db():
-    activity = Activity(id = 12, name = "Activity 1")
-    activity2 = Activity(id = 12, name = "Activity 2")
-    print(activity)
-    print(activity2)
-    db.session.add(activity)
-    db.session.add(activity2)
-    db.session.commit()
-    print(activity2)
-    print(activity)
-'''
-
 @app.route('/activities_on_map/')
 def activities_on_map():
     start_coords = (48.855, 2.3433)
@@ -267,9 +254,16 @@ def activities_on_map():
     return folium_map._repr_html_()
 
 
-@app.route('/')
+@app.route('/', methods=['GET', 'POST'])
 def index():
-    return render_template('index.html')
+    print (request.method)
+    if request.method == "POST":
+        update_activities_json()
+    #if request.method == "GET":
+    with open('activities.json', "r+") as json_file:
+        data = json.load(json_file)
+    activity_nb = len(data)
+    return render_template('index.html',activity_nb = activity_nb)
     
 if __name__ == "__main__":
     if startupCheck("strava_tokens.json"):
@@ -285,37 +279,6 @@ if __name__ == "__main__":
         #update_activities_json()
         
         app.run(debug=True)
-        
-        #update_activities_json()
-        
-        #print(len(activities))
-        #exit()
-        #a1 = Activity(activities[0]["id"])
-        #a1.print_activity_map_cv()
-
-        #db.drop_all(bind=None)
-        #create_db()
-        #add_activity_db()
-        #Activity.query.all()
-        
-        # new_1 = {"d":"4"}
-
-        # with open('activities.json', "r+") as json_file:
-        #     data = json.load(json_file)
-        #     if data == None:
-        #         print("It's none")
-        #     if "key 3" in data:
-        #         print("IN1")
-        #     data["key 3"]={"id": "3", "name":"blabla"}
-        #     if "key 3" in data:
-        #         print("IN2")
-        #     json_file.seek(0)
-        #     json.dump(data, json_file, indent=4)
-
-
-
-        #one_activity = get_activity_by_id(activities[0]["id"])
-        #print_activity_map(one_activity)
 
     else:
         # retrieve code from the link
