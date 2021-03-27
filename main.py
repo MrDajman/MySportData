@@ -216,23 +216,32 @@ class Activity():
             cv2.destroyAllWindows()
 
 def update_activities_json():
-    page = 10
+    page = 1
+    count_old = 0
+    count_new = 0
+    while(1):
+        activities_list = get_my_activities(access_token,per_page=200, page = page)
+        if len(activities_list) == 0:
+            break
+        if activities_list == 0:
+            return 0
 
-    activities_list = get_my_activities(access_token,per_page=200, page = 4)
-    if activities_list == 0:
-        return 0
 
-    for activity in activities_list:
-        with open('activities.json', "r+") as json_file:
-            data = json.load(json_file)
-            if str(activity["id"]) not in data:
-                a = Activity(activity["id"])
-                data[activity["id"]]=a.get_activity_dict()[activity["id"]]
+        for activity in activities_list:
+            with open('activities.json', "r+") as json_file:
+                data = json.load(json_file)
+                if str(activity["id"]) not in data:
+                    a = Activity(activity["id"])
+                    data[activity["id"]]=a.get_activity_dict()[activity["id"]]
 
-                json_file.seek(0)
-                json.dump(data, json_file, indent=4)
-            else:
-                print("INFO:\tAvtivity {} is already in the database".format(activity["id"]))
+                    json_file.seek(0)
+                    json.dump(data, json_file, indent=4)
+                    count_new += 1
+                else:
+                    print("INFO:\tAvtivity {} is already in the database".format(activity["id"]))
+                    count_old += 1
+        page += 1
+    return count_new, count_old
 
 def create_db():
     db.create_all()
@@ -241,6 +250,7 @@ def create_db():
 def activities_on_map():
     start_coords = (48.855, 2.3433)
     folium_map = folium.Map(location=start_coords, zoom_start=13)
+    folium.TileLayer('cartodbpositron').add_to(folium_map)
     with open('activities.json', "r") as json_file:
         data = json.load(json_file)
         print(len(data))
@@ -250,7 +260,11 @@ def activities_on_map():
         line = polyline.decode(data[activity_id]["polyline"])
         if len(line) == 0:
             continue
-        folium.PolyLine(line).add_to(folium_map)
+        if data[activity_id]["type"] in ["Run","Walk"]:
+            folium.PolyLine(line, color = "#FF0000", opacity = 0.3).add_to(folium_map)
+        elif data[activity_id]["type"] in ["Ride"]:
+            folium.PolyLine(line, color = "#0000FF", opacity = 0.3).add_to(folium_map)
+        #folium.ColorLine(line,(255,255,0)).add_to(folium_map)
     return folium_map._repr_html_()
 
 
