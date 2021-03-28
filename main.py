@@ -127,7 +127,6 @@ def check_response(response):
 
         #exit() 
 
-#class Activity(db.Model):
 class Activity():
     #constructor
     #id = db.Column(db.Integer, primary_key=True, unique = True)
@@ -216,6 +215,7 @@ class Activity():
             cv2.waitKey(0)
             cv2.destroyAllWindows()
 
+
 def update_activities_json():
     page = 1
     count_old = 0
@@ -279,7 +279,6 @@ def activities_on_map():
     folium.LayerControl(collapsed=False).add_to(folium_map)
     return folium_map._repr_html_()
 
-
 @app.route('/', methods=['GET', 'POST'])
 def index():
     print (request.method)
@@ -302,8 +301,6 @@ if __name__ == "__main__":
             print("INFO:\tTokens are up to date. Next refresh in {} minutes".format(round((strava_tokens['expires_at'] - time.time())/60.0,2)))
         print("INFO:\tAccess token: {}".format(access_token))
 
-        #update_activities_json()
-        
         app.run(debug=True)
 
     else:
