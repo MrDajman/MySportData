@@ -11,6 +11,7 @@ import numpy as np
 from flask import Flask, render_template, request
 #from flask_sqlalchemy import SQLAlchemy
 import folium
+from folium import plugins
 
 
 app = Flask(__name__)
@@ -249,8 +250,11 @@ def create_db():
 @app.route('/activities_on_map/')
 def activities_on_map():
     start_coords = (48.855, 2.3433)
-    folium_map = folium.Map(location=start_coords, zoom_start=13)
-    folium.TileLayer('cartodbpositron').add_to(folium_map)
+    folium_map = folium.Map(location=start_coords, zoom_start=13, tiles='cartodbpositron')
+    
+    run_map = folium.FeatureGroup("Runs").add_to(folium_map)
+    ride_map = folium.FeatureGroup("Bike rides").add_to(folium_map)
+    
     with open('activities.json', "r") as json_file:
         data = json.load(json_file)
         print(len(data))
@@ -261,10 +265,18 @@ def activities_on_map():
         if len(line) == 0:
             continue
         if data[activity_id]["type"] in ["Run","Walk"]:
-            folium.PolyLine(line, color = "#FF0000", opacity = 0.3).add_to(folium_map)
+            popup_text = "Distance: {}\n Date: {}".format(data[activity_id]["distance"], data[activity_id]["start_date_local"])
+            folium.PolyLine(line, color = "#FF0000", opacity = 0.3, control = False, popup = popup_text).add_to(run_map)
+            #run_polylines.add_to(run_map).add_to(folium_map)
+            #run_polylines.layer_name = "Runs"
+            
+            pass
         elif data[activity_id]["type"] in ["Ride"]:
-            folium.PolyLine(line, color = "#0000FF", opacity = 0.3).add_to(folium_map)
+            folium.PolyLine(line, color = "#0000FF", opacity = 0.3, control = False).add_to(ride_map)
+            pass
         #folium.ColorLine(line,(255,255,0)).add_to(folium_map)
+
+    folium.LayerControl(collapsed=False).add_to(folium_map)
     return folium_map._repr_html_()
 
 

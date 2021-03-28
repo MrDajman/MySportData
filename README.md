@@ -1,8 +1,10 @@
 # MySportData
 
+App to show heatmap of all the activities using Strava API
+![Heatmap](Screenshot.png)
+
 Current ideas
-- save the activies in the databse so it won't be necessary to make requests to get new ones (API restrictions)
-- use socket io to show info data in real time
+- use socket io to show update info data in real time
 
 Progress
 
