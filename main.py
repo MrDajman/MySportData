@@ -8,13 +8,14 @@ import polyline
 import cv2
 from operator import itemgetter
 import numpy as np
-from flask import Flask, render_template, request
+from flask import Flask, render_template, request, session
 #from flask_sqlalchemy import SQLAlchemy
 import folium
 from folium import plugins
 
 
 app = Flask(__name__)
+app.secret_key = "hello"
 #app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///data.db'
 #db = SQLAlchemy(app)
 
@@ -127,6 +128,24 @@ def check_response(response):
 
         #exit() 
 
+def get_token():
+
+    if startupCheck("strava_tokens.json"):
+        with open('strava_tokens.json') as json_file:
+            strava_tokens = json.load(json_file)
+        session["access_token"] = strava_tokens["access_token"]
+        if strava_tokens['expires_at'] < time.time():
+            session["access_token"] = refresh_auth(strava_tokens)
+        else:
+            print("INFO:\tTokens are up to date. Next refresh in {} minutes".format(round((strava_tokens['expires_at'] - time.time())/60.0,2)))
+        print("INFO:\tAccess token: {}".format(session["access_token"]))
+
+    else:
+        # retrieve code from the link
+        # https://www.strava.com/oauth/authorize?client_id=63388&response_type=code&redirect_uri=http://localhost/exchange_token&approval_prompt=force&scope=profile:read_all,activity:read_all
+        code = '81152c10599d233cf7d92f050991dafbdbdb010b'
+        first_auth(code)
+
 class Activity():
     #constructor
     #id = db.Column(db.Integer, primary_key=True, unique = True)
@@ -221,7 +240,7 @@ def update_activities_json():
     count_old = 0
     count_new = 0
     while(1):
-        activities_list = get_my_activities(access_token,per_page=200, page = page)
+        activities_list = get_my_activities(session["access_token"],per_page=200, page = page)
         if len(activities_list) == 0:
             break
         if activities_list == 0:
@@ -281,6 +300,8 @@ def activities_on_map():
 
 @app.route('/', methods=['GET', 'POST'])
 def index():
+    if "access_token" not in session:
+        get_token()
     print (request.method)
     if request.method == "POST":
         update_activities_json()
@@ -291,6 +312,10 @@ def index():
     return render_template('index.html',activity_nb = activity_nb)
     
 if __name__ == "__main__":
+
+    app.run(debug=True)
+    '''
+
     if startupCheck("strava_tokens.json"):
         with open('strava_tokens.json') as json_file:
             strava_tokens = json.load(json_file)
@@ -301,10 +326,11 @@ if __name__ == "__main__":
             print("INFO:\tTokens are up to date. Next refresh in {} minutes".format(round((strava_tokens['expires_at'] - time.time())/60.0,2)))
         print("INFO:\tAccess token: {}".format(access_token))
 
-        app.run(debug=True)
+        
 
     else:
         # retrieve code from the link
         # https://www.strava.com/oauth/authorize?client_id=63388&response_type=code&redirect_uri=http://localhost/exchange_token&approval_prompt=force&scope=profile:read_all,activity:read_all
         code = '81152c10599d233cf7d92f050991dafbdbdb010b'
         first_auth(code)
+'''
