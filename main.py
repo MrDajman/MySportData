@@ -159,7 +159,7 @@ class Activity():
     def __init__(self, id):
         print("INFO:\tRetrieving activity ID: {}".format(id))
         url = "https://www.strava.com/api/v3/activities/{}?".format(id)
-        r = requests.get(url, data = {"access_token":access_token})
+        r = requests.get(url, data = {"access_token":session["access_token"]})
         check_response(r)
 
         self.data = r.json()
@@ -298,7 +298,7 @@ def activities_on_map():
     folium.LayerControl(collapsed=False).add_to(folium_map)
     return folium_map._repr_html_()
 
-@app.route('/', methods=['GET', 'POST'])
+@app.route('/')
 def index():
     if "access_token" not in session:
         get_token()
@@ -306,16 +306,22 @@ def index():
     if request.method == "POST":
         update_activities_json()
     #if request.method == "GET":
+    
+    return render_template('index.html')
+
+@app.route('/updated/')
+def updated():
+
+    count_new, count_old = update_activities_json()
     with open('activities.json', "r+") as json_file:
         data = json.load(json_file)
     activity_nb = len(data)
-    return render_template('index.html',activity_nb = activity_nb)
+    return render_template('updated.html',activity_nb = activity_nb, count_new = count_new, count_old = count_old)
     
 if __name__ == "__main__":
 
     app.run(debug=True)
     '''
-
     if startupCheck("strava_tokens.json"):
         with open('strava_tokens.json') as json_file:
             strava_tokens = json.load(json_file)

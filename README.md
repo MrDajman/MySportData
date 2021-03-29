@@ -9,9 +9,9 @@ Current ideas
 Progress
 
 To Do
-- Snap activity tracks to the roads
-- Flask functionalities
 - Authorizing Strava via website
+- Flask functionalities
+- Snap activity tracks to the roads
 
 Resources
 - Strava API
