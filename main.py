@@ -19,6 +19,13 @@ app.secret_key = "hello"
 #app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///data.db'
 #db = SQLAlchemy(app)
 
+app.config['OAUTH_CREDENTIALS'] = {
+    'strava': {
+        'id': '470154729788964',
+        'secret': 'cd53d9a8623c88f85fe7f59ca0c4e9a4e6c2ac5f'
+    }
+    }
+
 activites_url = "https://www.strava.com/api/v3/athlete/activities"
 
 
@@ -234,7 +241,6 @@ class Activity():
             cv2.waitKey(0)
             cv2.destroyAllWindows()
 
-
 def update_activities_json():
     page = 1
     count_old = 0
@@ -317,7 +323,37 @@ def updated():
         data = json.load(json_file)
     activity_nb = len(data)
     return render_template('updated.html',activity_nb = activity_nb, count_new = count_new, count_old = count_old)
-    
+
+
+class StravaOAuthSignIn(object):
+    providers = None
+
+    def __init__(self, provider_name):
+        self.provider_name = provider_name
+        credentials = current_app.config['OAUTH_CREDENTIALS'][provider_name]
+        self.consumer_id = credentials['id']
+        self.consumer_secret = credentials['secret']
+
+    def authorize(self):
+        pass
+
+    def callback(self):
+        pass
+
+    def get_callback_url(self):
+        return url_for('oauth_callback', provider=self.provider_name,
+                       _external=True)
+
+    @classmethod
+    def get_provider(self, provider_name):
+        if self.providers is None:
+            self.providers = {}
+            for provider_class in self.__subclasses__():
+                provider = provider_class()
+                self.providers[provider.provider_name] = provider
+        return self.providers[provider_name]
+
+
 if __name__ == "__main__":
 
     app.run(debug=True)
