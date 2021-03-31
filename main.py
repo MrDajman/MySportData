@@ -1,5 +1,6 @@
 import requests
 import urllib3
+#import urllib2
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 import json
 import os
@@ -8,25 +9,107 @@ import polyline
 import cv2
 from operator import itemgetter
 import numpy as np
-from flask import Flask, render_template, request, session
+from flask import Flask, render_template, request, session, url_for, current_app, redirect, flash
+from rauth import OAuth2Service
 #from flask_sqlalchemy import SQLAlchemy
 import folium
 from folium import plugins
+from flask_login import LoginManager, UserMixin, login_user, logout_user,\
+    current_user
+from flask_sqlalchemy import SQLAlchemy
+from oauth import OAuthSignIn
 
 
 app = Flask(__name__)
 app.secret_key = "hello"
-#app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///data.db'
-#db = SQLAlchemy(app)
-
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///db.sqlite'
 app.config['OAUTH_CREDENTIALS'] = {
     'strava': {
-        'id': '470154729788964',
+        'id': "63388",
         'secret': 'cd53d9a8623c88f85fe7f59ca0c4e9a4e6c2ac5f'
     }
-    }
+}
+
+db = SQLAlchemy(app)
+lm = LoginManager(app)
+lm.login_view = 'index2'
+
+
+class User(UserMixin, db.Model):
+    __tablename__ = 'users'
+    id = db.Column(db.Integer, primary_key=True)
+    social_id = db.Column(db.String(64), nullable=False, unique=True)
+    nickname = db.Column(db.String(64), nullable=False)
+    fullname = db.Column(db.String(64), nullable=True)
+    refresh_token = db.Column(db.String(64), nullable=False)
+    access_token = db.Column(db.String(64), nullable=False)
+    token_expires = db.Column(db.Integer, nullable=False)
+
+
+@lm.user_loader
+def load_user(id):
+    return User.query.get(int(id))
+
+
+@app.route('/')
+def index():
+    return render_template('index2.html')
+
+
+@app.route('/logout')
+def logout():
+    logout_user()
+    return redirect(url_for('index'))
+
+
+@app.route('/authorize/<provider>')
+def oauth_authorize(provider):
+    if not current_user.is_anonymous:
+        return redirect(url_for('index'))
+    oauth = OAuthSignIn.get_provider(provider)
+    return oauth.authorize()
+
+
+@app.route('/callback/<provider>')
+def oauth_callback(provider):
+    if not current_user.is_anonymous:
+        return redirect(url_for('index'))
+    oauth = OAuthSignIn.get_provider(provider)
+
+
+    social_id, username, firstname, lastname, refresh_token, access_token, token_expires = oauth.callback()
+    if social_id is None:
+        flash('Authentication failed.')
+        return redirect(url_for('index'))
+    user = User.query.filter_by(social_id=social_id).first()
+    if not user:
+        user = User(
+            social_id=social_id, 
+            nickname=username, 
+            fullname=str(firstname + " " + lastname), 
+            refresh_token = refresh_token, 
+            access_token = access_token, 
+            token_expires = token_expires)
+        db.session.add(user)
+        db.session.commit()
+
+    print(token_expires - time.time())
+    #if token_expires < time.time():
+     #       session["access_token"] = refresh_auth(strava_tokens)
+    # TO DO UPDATE TOKENS HERE
+    login_user(user, True)
+    return redirect(url_for('index'))
+
+
+if __name__ == '__main__':
+    db.create_all()
+    app.run(debug=True)
+
+
+'''
 
 activites_url = "https://www.strava.com/api/v3/athlete/activities"
+
 
 
 def startupCheck(tokens_path):
@@ -304,7 +387,7 @@ def activities_on_map():
     folium.LayerControl(collapsed=False).add_to(folium_map)
     return folium_map._repr_html_()
 
-@app.route('/')
+@app.route('/1')
 def index():
     if "access_token" not in session:
         get_token()
@@ -356,8 +439,8 @@ class StravaOAuthSignIn(object):
 
 if __name__ == "__main__":
 
-    app.run(debug=True)
-    '''
+    app.run(debug=True)'''
+'''
     if startupCheck("strava_tokens.json"):
         with open('strava_tokens.json') as json_file:
             strava_tokens = json.load(json_file)
