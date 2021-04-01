@@ -21,5 +21,6 @@ https://realpython.com/flask-google-login/)
 
 Resources
 - Strava API
+- Flask, flask_sqlachemy
 - OpenStreetMap
 - Folium

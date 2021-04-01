@@ -18,6 +18,7 @@ from flask_login import LoginManager, UserMixin, login_user, logout_user,\
     current_user
 from flask_sqlalchemy import SQLAlchemy
 from oauth import OAuthSignIn
+import datetime
 
 
 app = Flask(__name__)
@@ -32,11 +33,11 @@ app.config['OAUTH_CREDENTIALS'] = {
 
 db = SQLAlchemy(app)
 lm = LoginManager(app)
-lm.login_view = 'index2'
+lm.login_view = 'index'
 
 
 class User(UserMixin, db.Model):
-    __tablename__ = 'users'
+    __tablename__ = 'user'
     id = db.Column(db.Integer, primary_key=True)
     social_id = db.Column(db.String(64), nullable=False, unique=True)
     nickname = db.Column(db.String(64), nullable=False)
@@ -45,15 +46,26 @@ class User(UserMixin, db.Model):
     access_token = db.Column(db.String(64), nullable=False)
     token_expires = db.Column(db.Integer, nullable=False)
 
+class Activity(db.Model):
+    __tablename__ = 'activity'
+    id = db.Column(db.Integer, primary_key=True)
+    strava_id = db.Column(db.String(64), nullable=False, unique=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    name = db.Column(db.String(64), nullable=True)
+    distance = db.Column(db.Integer, nullable=True)
+    sport = db.Column(db.String(64), nullable=False)
+    date = db.Column(db.DateTime, nullable=False)
+    polyline = db.Column(db.String(12000), nullable=True)
 
 @lm.user_loader
 def load_user(id):
     return User.query.get(int(id))
+    id = db.Column(db.Integer, primary_key=True)
 
 
 @app.route('/')
 def index():
-    return render_template('index2.html')
+    return render_template('index.html')
 
 
 @app.route('/logout')
@@ -82,6 +94,7 @@ def oauth_callback(provider):
         flash('Authentication failed.')
         return redirect(url_for('index'))
     user = User.query.filter_by(social_id=social_id).first()
+
     if not user:
         user = User(
             social_id=social_id, 
@@ -92,6 +105,12 @@ def oauth_callback(provider):
             token_expires = token_expires)
         db.session.add(user)
         db.session.commit()
+    else:
+        user.refresh_token = refresh_token
+        user.access_token = access_token
+        user.token_expires = token_expires
+
+        db.session.commit()
 
     print(token_expires - time.time())
     #if token_expires < time.time():
@@ -99,6 +118,127 @@ def oauth_callback(provider):
     # TO DO UPDATE TOKENS HERE
     login_user(user, True)
     return redirect(url_for('index'))
+
+@app.route('/activities_on_map/')
+def activities_on_map():
+    start_coords = (48.855, 2.3433)
+    folium_map = folium.Map(location=start_coords, zoom_start=13, tiles='cartodbpositron')
+    
+    run_map = folium.FeatureGroup("Runs").add_to(folium_map)
+    ride_map = folium.FeatureGroup("Bike rides").add_to(folium_map)
+    
+    with open('activities.json', "r") as json_file:
+        data = json.load(json_file)
+        print(len(data))
+    for activity_id in data:
+        if data[activity_id]["polyline"] == None:
+            continue
+        line = polyline.decode(data[activity_id]["polyline"])
+        if len(line) == 0:
+            continue
+        if data[activity_id]["type"] in ["Run","Walk"]:
+            popup_text = "Distance: {}\n Date: {}".format(data[activity_id]["distance"], data[activity_id]["start_date_local"])
+            folium.PolyLine(line, color = "#FF0000", opacity = 0.3, control = False, popup = popup_text).add_to(run_map)
+            #run_polylines.add_to(run_map).add_to(folium_map)
+            #run_polylines.layer_name = "Runs"
+            
+            pass
+        elif data[activity_id]["type"] in ["Ride"]:
+            folium.PolyLine(line, color = "#0000FF", opacity = 0.3, control = False).add_to(ride_map)
+            pass
+        #folium.ColorLine(line,(255,255,0)).add_to(folium_map)
+
+    folium.LayerControl(collapsed=False).add_to(folium_map)
+    return folium_map._repr_html_()
+
+
+
+def get_my_activities(before = False, after = False, page = False, per_page = False):
+    print("INFO:\tRetrieving athlete activities")
+    url = "https://www.strava.com/api/v3/activities?"
+    if page:
+        url += "page={}&".format(page)
+    if per_page:
+        url += "per_page={}&".format(per_page)
+    url = url[:-1]
+    print(url)
+    r = requests.get(url, data = {"access_token":current_user.access_token})
+    #print(r.json())
+    if check_response(r) == False:
+        return 0
+    return r.json()
+
+@app.route('/update_activities/')
+def update_activities_db():
+    page = 1
+    count_old = 0
+    count_new = 0
+    while(1):
+        activities_list = get_my_activities(per_page=200, page = page)
+        if len(activities_list) == 0:
+            break
+        if activities_list == 0:
+            return 0
+
+        for act in activities_list:
+            activity = Activity.query.filter_by(strava_id = act["id"]).first()
+            if not activity:
+                strava_id, user_id, name, distance, sport, date, polyline = single_activity_callback(act["id"])
+                date_date = date.split("T")[0].split("-")
+                date_time = date.split("T")[1][:-1].split(":")
+                activity = Activity(strava_id=strava_id,
+                                    user_id=user_id,
+                                    name = name,
+                                    distance = distance,
+                                    sport = sport,
+                                    date = datetime.datetime(int(date_date[0]),int(date_date[1]),int(date_date[2]),int(date_time[0]),int(date_time[1]),int(date_time[2])),
+                                    polyline = polyline)
+                db.session.add(activity)
+                db.session.commit()
+
+            else:
+                print("Activity already in db")
+            #user = User(
+            #    social_id=social_id, 
+            #    nickname=username, 
+            #    fullname=str(firstname + " " + lastname), 
+            #    refresh_token = refresh_token, 
+            #    access_token = access_token, 
+            #    token_expires = token_expires)
+            #db.session.add(user)
+            #db.session.commit()
+        page += 1
+
+    return count_new, count_old
+
+
+def single_activity_callback(id):
+        print("INFO:\tRetrieving activity ID: {}".format(id))
+        url = "https://www.strava.com/api/v3/activities/{}?".format(id)
+        r = requests.get(url, data = {"access_token":current_user.access_token})
+        check_response(r)
+
+        return (r.json()["id"],
+                current_user.id,
+                r.json()["name"],
+                r.json()["distance"],
+                r.json()["type"],
+                r.json()["start_date_local"],
+                r.json()["map"]["polyline"])
+
+
+def check_response(response):
+    if response.ok:
+        print("INFO:\tSuccessfully retrieved request")
+        return True
+    else:
+        errors = response.json()["errors"]
+        print("INFO:\tRequest isn't retrieved succesfully. Nb of errors: {}.".format(len(errors)))
+        for error in errors:
+            print("ERROR:\t{}: {}".format(error["resource"],error["code"]))
+            if error["resource"] == "Application" and error["code"] == "exceeded":
+                print("ERROR:\tWait 15 minutes for the query limit to renew")
+            return False
 
 
 if __name__ == '__main__':
@@ -355,37 +495,6 @@ def update_activities_json():
 def create_db():
     db.create_all()
 
-@app.route('/activities_on_map/')
-def activities_on_map():
-    start_coords = (48.855, 2.3433)
-    folium_map = folium.Map(location=start_coords, zoom_start=13, tiles='cartodbpositron')
-    
-    run_map = folium.FeatureGroup("Runs").add_to(folium_map)
-    ride_map = folium.FeatureGroup("Bike rides").add_to(folium_map)
-    
-    with open('activities.json', "r") as json_file:
-        data = json.load(json_file)
-        print(len(data))
-    for activity_id in data:
-        if data[activity_id]["polyline"] == None:
-            continue
-        line = polyline.decode(data[activity_id]["polyline"])
-        if len(line) == 0:
-            continue
-        if data[activity_id]["type"] in ["Run","Walk"]:
-            popup_text = "Distance: {}\n Date: {}".format(data[activity_id]["distance"], data[activity_id]["start_date_local"])
-            folium.PolyLine(line, color = "#FF0000", opacity = 0.3, control = False, popup = popup_text).add_to(run_map)
-            #run_polylines.add_to(run_map).add_to(folium_map)
-            #run_polylines.layer_name = "Runs"
-            
-            pass
-        elif data[activity_id]["type"] in ["Ride"]:
-            folium.PolyLine(line, color = "#0000FF", opacity = 0.3, control = False).add_to(ride_map)
-            pass
-        #folium.ColorLine(line,(255,255,0)).add_to(folium_map)
-
-    folium.LayerControl(collapsed=False).add_to(folium_map)
-    return folium_map._repr_html_()
 
 @app.route('/1')
 def index():
