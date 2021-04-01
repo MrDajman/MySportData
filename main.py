@@ -127,6 +127,29 @@ def activities_on_map():
     run_map = folium.FeatureGroup("Runs").add_to(folium_map)
     ride_map = folium.FeatureGroup("Bike rides").add_to(folium_map)
     
+    user_activities = Activity.query.filter_by(user_id=current_user.id).all()
+    #print(user_activities)
+    for activity in user_activities:
+        if activity.polyline == None:
+            continue
+        line = polyline.decode(activity.polyline)
+        if len(line) == 0:
+            continue
+        if activity.sport in ["Run","Walk"]:
+            popup_text = "Distance: {}\n Date: {}".format(activity.distance, activity.date)
+            folium.PolyLine(line, color = "#FF0000", opacity = 0.3, control = False, popup = popup_text).add_to(run_map)
+            #run_polylines.add_to(run_map).add_to(folium_map)
+            #run_polylines.layer_name = "Runs"
+            
+            pass
+        elif activity.sport in ["Ride"]:
+            folium.PolyLine(line, color = "#0000FF", opacity = 0.3, control = False).add_to(ride_map)
+            pass
+        #folium.ColorLine(line,(255,255,0)).add_to(folium_map)
+
+    folium.LayerControl(collapsed=False).add_to(folium_map)
+    return folium_map._repr_html_()
+'''   exit()
     with open('activities.json', "r") as json_file:
         data = json.load(json_file)
         print(len(data))
@@ -150,7 +173,7 @@ def activities_on_map():
 
     folium.LayerControl(collapsed=False).add_to(folium_map)
     return folium_map._repr_html_()
-
+'''
 
 
 def get_my_activities(before = False, after = False, page = False, per_page = False):
