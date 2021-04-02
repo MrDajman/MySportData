@@ -6,7 +6,7 @@ import json
 import os
 import time
 import polyline
-import cv2
+#import cv2
 from operator import itemgetter
 import numpy as np
 from flask import Flask, render_template, request, session, url_for, current_app, redirect, flash
@@ -187,8 +187,9 @@ def get_my_activities(before = False, after = False, page = False, per_page = Fa
     print(url)
     r = requests.get(url, data = {"access_token":current_user.access_token})
     #print(r.json())
-    if check_response(r) == False:
-        return 0
+    res = check_response(r)
+    if res != 1:
+        return res
     return r.json()
 
 @app.route('/update_activities/')
@@ -196,15 +197,23 @@ def update_activities_db():
     page = 1
     count_old = 0
     count_new = 0
+    error_out = ""
     while(1):
         try:
             activities_list = get_my_activities(per_page=200, page = page)
         except TypeError:
             break
+        
         try:
             if len(activities_list) == 0:
+                
                 break
         except TypeError:
+            try:
+                if activities_list == 2:
+                    error_out += "Wait 15 minutes for the query limit to Reset"
+            except:
+                pass
             break
         if activities_list == 0:
             return 0
@@ -242,16 +251,15 @@ def update_activities_db():
             #db.session.commit()
         page += 1
 
-    return render_template("update_db.html")
+    return render_template("update_db.html", error_out = error_out)
 
 
 def single_activity_callback(id):
         print("INFO:\tRetrieving activity ID: {}".format(id))
         url = "https://www.strava.com/api/v3/activities/{}?".format(id)
         r = requests.get(url, data = {"access_token":current_user.access_token})
-        if check_response(r) == False:
-            return False
-        else:
+        res = check_response(r)
+        if res == 1:
             return (r.json()["id"],
                 current_user.id,
                 r.json()["name"],
@@ -260,12 +268,15 @@ def single_activity_callback(id):
                 r.json()["start_date_local"],
                 r.json()["map"]["polyline"])
 
+        else:
+            return False
+
 
 
 def check_response(response):
     if response.ok:
         print("INFO:\tSuccessfully retrieved request")
-        return True
+        return 1
     else:
         errors = response.json()["errors"]
         print("INFO:\tRequest isn't retrieved succesfully. Nb of errors: {}.".format(len(errors)))
@@ -273,7 +284,8 @@ def check_response(response):
             print("ERROR:\t{}: {}".format(error["resource"],error["code"]))
             if error["resource"] == "Application" and error["code"] == "exceeded":
                 print("ERROR:\tWait 15 minutes for the query limit to renew")
-            return False
+                return 2
+            return 0
 
 
 if __name__ == '__main__':
