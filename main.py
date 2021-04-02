@@ -195,7 +195,7 @@ def get_my_activities(before = False, after = False, page = False, per_page = Fa
 @app.route('/update_activities/')
 def update_activities_db():
     page = 1
-    count_old = 0
+    count_total = 0
     count_new = 0
     error_out = ""
     while(1):
@@ -237,7 +237,7 @@ def update_activities_db():
                                     polyline = polyline)
                 db.session.add(activity)
                 db.session.commit()
-
+                count_new += 1
             else:
                 print("Activity already in db")
             #user = User(
@@ -249,9 +249,10 @@ def update_activities_db():
             #    token_expires = token_expires)
             #db.session.add(user)
             #db.session.commit()
+            count_total +=1
         page += 1
 
-    return render_template("update_db.html", error_out = error_out)
+    return render_template("update_db.html", error_out = error_out, count_new = count_new, count_total = count_total)
 
 
 def single_activity_callback(id):
@@ -281,10 +282,14 @@ def check_response(response):
         errors = response.json()["errors"]
         print("INFO:\tRequest isn't retrieved succesfully. Nb of errors: {}.".format(len(errors)))
         for error in errors:
-            print("ERROR:\t{}: {}".format(error["resource"],error["code"]))
+            print("ERROR:\t{}: {} {}".format(error["resource"],error["code"],error["field"]))
             if error["resource"] == "Application" and error["code"] == "exceeded":
                 print("ERROR:\tWait 15 minutes for the query limit to renew")
                 return 2
+            else: print(errors)
+            if error["resource"] == "Athlete" and error["code"] == "invalid":
+                print("ERROR:\Invalid Access token. Logout and Login")
+                return 3
             return 0
 
 

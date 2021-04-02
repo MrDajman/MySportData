@@ -13,8 +13,10 @@
         {% endfor %}
         {% if current_user.is_authenticated %}
         <h2>Hi, {{ current_user.nickname }}!</h2>
-        <h2>{{ error_out }}!</h2>
-
+        
+        <p>{{ error_out }}!</p>
+        <p>The database consist of {{ count_total }} activities</p>
+        <p>{{ count_new }} new activities has been added to database</p>
 
             <p><a href="{{ url_for('index') }}">Go back to the main page</a></p>
             <p><a href="{{ url_for('logout') }}">Logout</a></p>
