@@ -197,8 +197,14 @@ def update_activities_db():
     count_old = 0
     count_new = 0
     while(1):
-        activities_list = get_my_activities(per_page=200, page = page)
-        if len(activities_list) == 0:
+        try:
+            activities_list = get_my_activities(per_page=200, page = page)
+        except TypeError:
+            break
+        try:
+            if len(activities_list) == 0:
+                break
+        except TypeError:
             break
         if activities_list == 0:
             return 0
@@ -206,7 +212,11 @@ def update_activities_db():
         for act in activities_list:
             activity = Activity.query.filter_by(strava_id = act["id"]).first()
             if not activity:
-                strava_id, user_id, name, distance, sport, date, polyline = single_activity_callback(act["id"])
+                try:
+                    strava_id, user_id, name, distance, sport, date, polyline = single_activity_callback(act["id"])
+                except TypeError:
+                    break
+                
                 date_date = date.split("T")[0].split("-")
                 date_time = date.split("T")[1][:-1].split(":")
                 activity = Activity(strava_id=strava_id,
@@ -232,22 +242,24 @@ def update_activities_db():
             #db.session.commit()
         page += 1
 
-    return count_new, count_old
+    return render_template("update_db.html")
 
 
 def single_activity_callback(id):
         print("INFO:\tRetrieving activity ID: {}".format(id))
         url = "https://www.strava.com/api/v3/activities/{}?".format(id)
         r = requests.get(url, data = {"access_token":current_user.access_token})
-        check_response(r)
-
-        return (r.json()["id"],
+        if check_response(r) == False:
+            return False
+        else:
+            return (r.json()["id"],
                 current_user.id,
                 r.json()["name"],
                 r.json()["distance"],
                 r.json()["type"],
                 r.json()["start_date_local"],
                 r.json()["map"]["polyline"])
+
 
 
 def check_response(response):
