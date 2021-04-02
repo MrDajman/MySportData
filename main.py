@@ -36,6 +36,40 @@ lm = LoginManager(app)
 lm.login_view = 'index'
 
 
+list_colors = [
+    "#00FF00",
+    "#12FF00",
+    "#24FF00",
+    "#35FF00",
+    "#47FF00",
+    "#58FF00",
+    "#6AFF00",
+    "#7CFF00",
+    "#8DFF00",
+    "#9FFF00",
+    "#B0FF00",
+    "#C2FF00",
+    "#D4FF00",
+    "#E5FF00",
+    "#F7FF00",
+    "#FFF600",
+    "#FFE400",
+    "#FFD300",
+    "#FFC100",
+    "#FFAF00",
+    "#FF9E00",
+    "#FF8C00",
+    "#FF7B00",
+    "#FF6900",
+    "#FF5700",
+    "#FF4600",
+    "#FF3400",
+    "#FF2300",
+    "#FF1100",
+    "#FF0000",
+]
+color_dict = {i: list_colors[i] for i in range(len(list_colors))}
+
 class User(UserMixin, db.Model):
     __tablename__ = 'user'
     id = db.Column(db.Integer, primary_key=True)
@@ -119,6 +153,42 @@ def oauth_callback(provider):
     login_user(user, True)
     return redirect(url_for('index'))
 
+@app.route('/sigle_activity_speed/', methods = ['POST'])
+def single_activity_speed():
+    start_coords = (48.855, 2.3433)
+    speed_map = folium.Map(location=start_coords, zoom_start=13, tiles='cartodbpositron')
+    
+    activity_id = int(request.form['nm'])
+    
+    activity = Activity.query.filter_by(strava_id=activity_id).first()
+    line = polyline.decode(activity.polyline)
+    
+    streams = get_activity_streams(activity_id, ["velocity_smooth"])
+
+    speed = streams["velocity_smooth"]["data"]
+    
+    print(len(speed))
+    print(len(line))
+
+    folium.PolyLine(line, color=color_dict[round(speed)], opacity = 0.3, control = False, popup = popup_text).add_to(run_map)
+
+    return speed_map._repr_html_()
+
+def get_activity_streams(id, keys):
+    print("INFO:\tRetrieving athlete activities")
+    url = "https://www.strava.com/api/v3/activities/{}/streams?".format(id)
+    for key in keys:
+        url += "keys={}&".format(key)
+    url += "key_by_type=1&"
+    url = url[:-1]
+    print(url)
+    r = requests.get(url, data = {"access_token":current_user.access_token})
+    print(r.json())
+    res = check_response(r)
+    if res != 1:
+        return res
+    return r.json()
+
 @app.route('/activities_on_map/')
 def activities_on_map():
     start_coords = (48.855, 2.3433)
@@ -148,6 +218,7 @@ def activities_on_map():
         #folium.ColorLine(line,(255,255,0)).add_to(folium_map)
 
     folium.LayerControl(collapsed=False).add_to(folium_map)
+
     return folium_map._repr_html_()
 '''   exit()
     with open('activities.json', "r") as json_file:
