@@ -19,6 +19,7 @@ from flask_login import LoginManager, UserMixin, login_user, logout_user,\
 from flask_sqlalchemy import SQLAlchemy
 from oauth import OAuthSignIn
 import datetime
+import geopy.distance
 
 
 app = Flask(__name__)
@@ -164,13 +165,49 @@ def single_activity_speed():
     line = polyline.decode(activity.polyline)
     
     streams = get_activity_streams(activity_id, ["velocity_smooth"])
+    speed = streams["velocity_smooth"]["data"]# in m/s
+    dist_speed = streams["distance"]["data"]
 
-    speed = streams["velocity_smooth"]["data"]
-    
-    print(len(speed))
-    print(len(line))
+    max_speed = max(speed)
+    dict_offset = 3
+    color_dict = {i+dict_offset: list_colors[i] for i in range(len(list_colors))}
+    start_point = line[0]
+    total_line_distance = 0
+    last_speed_index = 0
+    for point in line[1:]:
 
-    folium.PolyLine(line, color=color_dict[round(speed)], opacity = 0.3, control = False, popup = popup_text).add_to(run_map)
+        point_distance = geopy.distance.distance(start_point, point).m
+        #print(point_distance)
+        total_line_distance += point_distance
+        
+        #print(dist_speed,total_line_distance)
+        if total_line_distance > dist_speed[-1]:
+            speed_index = len(speed)-1
+            print("LOOOOOONG")
+        else:
+            speed_index = next(x[0] for x in enumerate(dist_speed) if x[1] > total_line_distance)
+
+        if last_speed_index == speed_index:
+            segment_speed = 0
+        else:
+            segment_speed = np.mean(speed[last_speed_index:speed_index])*3.6 # in km/h 
+
+        
+        if segment_speed > 29+ dict_offset:
+            segment_speed = 29 + dict_offset
+        elif segment_speed <dict_offset:
+            segment_speed = dict_offset
+        folium.PolyLine((start_point, point), color=color_dict[round(segment_speed)], weight = 5, control = False).add_to(speed_map)
+        #, color=color_dict[round(speed)]
+        #print(segment_speed)
+        #print(total_line_distance)
+        last_speed_index = speed_index
+        start_point = point
+
+    #print(len(speed))
+    #print(len(line))
+    #print(len(dist_speed))
+
 
     return speed_map._repr_html_()
 
@@ -183,7 +220,7 @@ def get_activity_streams(id, keys):
     url = url[:-1]
     print(url)
     r = requests.get(url, data = {"access_token":current_user.access_token})
-    print(r.json())
+    #print(r.json())
     res = check_response(r)
     if res != 1:
         return res
