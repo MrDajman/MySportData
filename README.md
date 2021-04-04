@@ -1,7 +1,12 @@
 # MySportData
 
 App to show heatmap of all the activities using Strava API
+
+Map of all the activities
 ![Heatmap](Screenshot.png)
+
+Speed map of single activity
+![Speedmap](Screenshot2.png)
 
 How to use (local server)
 1. Copy the repository
@@ -24,6 +29,7 @@ Current functionalities
 - User database
 - Storing activities in the database
 - **Interactive map with all the activities**
+- **Interactive map with color trail for the speed of an activity**
 
 
 To Do

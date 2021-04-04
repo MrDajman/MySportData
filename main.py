@@ -250,7 +250,13 @@ def activities_on_map():
             
             pass
         elif activity.sport in ["Ride"]:
-            folium.PolyLine(line, color = "#0000FF", opacity = 0.3, control = False).add_to(ride_map)
+            end_point_address = url_for('single_activity_speed')
+            #end_point_address = "www.google.com"
+            html = """<form action = "{}" target="_blank" method = "post">
+                <p><input type="hidden" id="postId" name="nm" value={}></p>
+                <p><input type = "submit" value = "Show speed map" /></p>
+             </form>""".format(end_point_address, activity.strava_id)
+            folium.PolyLine(line, color = "#0000FF", opacity = 0.3, control = False, popup = html).add_to(ride_map)
             pass
         #folium.ColorLine(line,(255,255,0)).add_to(folium_map)
 
