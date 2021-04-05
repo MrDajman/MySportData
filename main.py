@@ -20,6 +20,7 @@ from flask_sqlalchemy import SQLAlchemy
 from oauth import OAuthSignIn
 import datetime
 import geopy.distance
+import branca
 
 
 app = Flask(__name__)
@@ -157,23 +158,41 @@ def oauth_callback(provider):
 @app.route('/sigle_activity_speed/', methods = ['POST'])
 def single_activity_speed():
     start_coords = (48.855, 2.3433)
-    speed_map = folium.Map(location=start_coords, zoom_start=13, tiles='cartodbpositron')
     
     activity_id = int(request.form['nm'])
     
     activity = Activity.query.filter_by(strava_id=activity_id).first()
     line = polyline.decode(activity.polyline)
     
+
     streams = get_activity_streams(activity_id, ["velocity_smooth"])
     speed = streams["velocity_smooth"]["data"]# in m/s
     dist_speed = streams["distance"]["data"]
 
     max_speed = max(speed)
-    dict_offset = 3
-    color_dict = {i+dict_offset: list_colors[i] for i in range(len(list_colors))}
+    color_dict = {i: list_colors[i] for i in range(len(list_colors))}
     start_point = line[0]
     total_line_distance = 0
     last_speed_index = 0
+
+    #print(line)
+    
+    lon_max = (max(line,key=lambda item:item[1])[1])
+    lat_max = (max(line,key=lambda item:item[0])[0])
+    lon_min = (min(line,key=lambda item:item[1])[1])
+    lat_min = (min(line,key=lambda item:item[0])[0])
+    start_coords = (lat_min+(lat_max - lat_min)/2, lon_min+(lon_max - lon_min)/2)
+    speed_map = folium.Map(location=start_coords, zoom_start=13, tiles='cartodbpositron',width='100%', height='75%')
+
+    speed_median = np.median(speed)*3.6
+    color_margin = 5
+    #specify the min and max values of your data
+    colormap = branca.colormap.LinearColormap([(0,255,0),(255,255,0),(255,0,0)])
+    colormap = colormap.scale(speed_median-color_margin, speed_median+color_margin)
+    colormap = colormap.to_step(index=[speed_median-color_margin, speed_median-color_margin/2, speed_median, speed_median+color_margin/2, speed_median+color_margin])
+    colormap.caption = 'Speed (km/h)'
+    colormap.add_to(speed_map)
+
     for point in line[1:]:
 
         point_distance = geopy.distance.distance(start_point, point).m
@@ -183,7 +202,7 @@ def single_activity_speed():
         #print(dist_speed,total_line_distance)
         if total_line_distance > dist_speed[-1]:
             speed_index = len(speed)-1
-            print("LOOOOOONG")
+            #print("LOOOOOONG")
         else:
             speed_index = next(x[0] for x in enumerate(dist_speed) if x[1] > total_line_distance)
 
@@ -192,26 +211,50 @@ def single_activity_speed():
         else:
             segment_speed = np.mean(speed[last_speed_index:speed_index])*3.6 # in km/h 
 
-        
-        if segment_speed > 29+ dict_offset:
-            segment_speed = 29 + dict_offset
-        elif segment_speed <dict_offset:
-            segment_speed = dict_offset
-        folium.PolyLine((start_point, point), color=color_dict[round(segment_speed)], weight = 5, control = False).add_to(speed_map)
-        #, color=color_dict[round(speed)]
-        #print(segment_speed)
-        #print(total_line_distance)
+        speed_new_range = (segment_speed - speed_median + color_margin) * (29/(2*color_margin))
+        if speed_new_range > len(list_colors)-1:
+            speed_new_range = len(list_colors)-1
+        elif speed_new_range < 0:
+            speed_new_range = 0
+        print(speed_new_range)
+        folium.PolyLine((start_point, point), color=color_dict[round(speed_new_range)], weight = 5, control = False).add_to(speed_map)
+
         last_speed_index = speed_index
         start_point = point
 
-    #print(len(speed))
-    #print(len(line))
-    #print(len(dist_speed))
-
-
     return speed_map._repr_html_()
 
+def update_tokens():
+    print(current_user.token_expires)
+    print(time.time())
+    if current_user.token_expires < time.time():
+
+        print("INFO:\tTokens expired. Retreiving refreshed tokens")
+
+        payload = {
+                'client_id': "63388",
+                'client_secret': 'cd53d9a8623c88f85fe7f59ca0c4e9a4e6c2ac5f',
+                'grant_type': 'refresh_token',
+                'refresh_token': current_user.refresh_token
+                }
+
+        response = requests.post(url = 'https://www.strava.com/oauth/token',data = payload)
+
+        check_response(response)
+
+        current_user.access_token = response.json()["access_token"]
+        current_user.refresh_token = response.json()["refresh_token"]
+        current_user.token_expires = response.json()["expires_at"]
+
+        db.session.commit()
+        print("INFO:\tTokens Updated")
+    else:
+        print("INFO:\tTokens Up to date")
+
 def get_activity_streams(id, keys):
+
+    update_tokens()
+
     print("INFO:\tRetrieving athlete activities")
     url = "https://www.strava.com/api/v3/activities/{}/streams?".format(id)
     for key in keys:
@@ -242,55 +285,36 @@ def activities_on_map():
         line = polyline.decode(activity.polyline)
         if len(line) == 0:
             continue
+
+        end_point_address = url_for('single_activity_speed')
+        popup_html = """<p>Distance: {}</p>
+            <p>Date: {}</p>
+            <form action = "{}" target="_blank" method = "post">
+            <p><input type="hidden" id="postId" name="nm" value={}></p>
+            <p><input type = "submit" value = "Show speed map" /></p>
+            </form>""".format(activity.distance, activity.date, end_point_address, activity.strava_id)
+        
         if activity.sport in ["Run","Walk"]:
-            popup_text = "Distance: {}\n Date: {}".format(activity.distance, activity.date)
-            folium.PolyLine(line, color = "#FF0000", opacity = 0.3, control = False, popup = popup_text).add_to(run_map)
+            #popup_text = "Distance: {}\n Date: {}".format(activity.distance, activity.date)
+            folium.PolyLine(line, color = "#FF0000", opacity = 0.3, control = False, popup = popup_html).add_to(run_map)
             #run_polylines.add_to(run_map).add_to(folium_map)
             #run_polylines.layer_name = "Runs"
             
             pass
         elif activity.sport in ["Ride"]:
-            end_point_address = url_for('single_activity_speed')
-            #end_point_address = "www.google.com"
-            html = """<form action = "{}" target="_blank" method = "post">
-                <p><input type="hidden" id="postId" name="nm" value={}></p>
-                <p><input type = "submit" value = "Show speed map" /></p>
-             </form>""".format(end_point_address, activity.strava_id)
-            folium.PolyLine(line, color = "#0000FF", opacity = 0.3, control = False, popup = html).add_to(ride_map)
-            pass
-        #folium.ColorLine(line,(255,255,0)).add_to(folium_map)
-
-    folium.LayerControl(collapsed=False).add_to(folium_map)
-
-    return folium_map._repr_html_()
-'''   exit()
-    with open('activities.json', "r") as json_file:
-        data = json.load(json_file)
-        print(len(data))
-    for activity_id in data:
-        if data[activity_id]["polyline"] == None:
-            continue
-        line = polyline.decode(data[activity_id]["polyline"])
-        if len(line) == 0:
-            continue
-        if data[activity_id]["type"] in ["Run","Walk"]:
-            popup_text = "Distance: {}\n Date: {}".format(data[activity_id]["distance"], data[activity_id]["start_date_local"])
-            folium.PolyLine(line, color = "#FF0000", opacity = 0.3, control = False, popup = popup_text).add_to(run_map)
-            #run_polylines.add_to(run_map).add_to(folium_map)
-            #run_polylines.layer_name = "Runs"
             
-            pass
-        elif data[activity_id]["type"] in ["Ride"]:
-            folium.PolyLine(line, color = "#0000FF", opacity = 0.3, control = False).add_to(ride_map)
+            #end_point_address = "www.google.com"
+            folium.PolyLine(line, color = "#0000FF", opacity = 0.3, control = False, popup = popup_html).add_to(ride_map)
             pass
         #folium.ColorLine(line,(255,255,0)).add_to(folium_map)
 
     folium.LayerControl(collapsed=False).add_to(folium_map)
+
     return folium_map._repr_html_()
-'''
 
 
 def get_my_activities(before = False, after = False, page = False, per_page = False):
+    update_tokens()
     print("INFO:\tRetrieving athlete activities")
     url = "https://www.strava.com/api/v3/activities?"
     if page:
@@ -353,16 +377,7 @@ def update_activities_db():
                 db.session.commit()
                 count_new += 1
             else:
-                print("Activity already in db")
-            #user = User(
-            #    social_id=social_id, 
-            #    nickname=username, 
-            #    fullname=str(firstname + " " + lastname), 
-            #    refresh_token = refresh_token, 
-            #    access_token = access_token, 
-            #    token_expires = token_expires)
-            #db.session.add(user)
-            #db.session.commit()
+                print("INFO:\tActivity already in db")
             count_total +=1
         page += 1
 
@@ -370,6 +385,7 @@ def update_activities_db():
 
 
 def single_activity_callback(id):
+        update_tokens()
         print("INFO:\tRetrieving activity ID: {}".format(id))
         url = "https://www.strava.com/api/v3/activities/{}?".format(id)
         r = requests.get(url, data = {"access_token":current_user.access_token})
