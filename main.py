@@ -141,10 +141,6 @@ def oauth_callback(provider):
 
         db.session.commit()
 
-    print(token_expires - time.time())
-    #if token_expires < time.time():
-     #       session["access_token"] = refresh_auth(strava_tokens)
-    # TO DO UPDATE TOKENS HERE
     login_user(user, True)
     return redirect(url_for('index'))
 
@@ -167,8 +163,6 @@ def single_activity_speed():
     start_point = line[0]
     total_line_distance = 0
     last_speed_index = 0
-
-    #print(line)
     
     lon_max = (max(line,key=lambda item:item[1])[1])
     lat_max = (max(line,key=lambda item:item[0])[0])
@@ -189,13 +183,10 @@ def single_activity_speed():
     for point in line[1:]:
 
         point_distance = geopy.distance.distance(start_point, point).m
-        #print(point_distance)
         total_line_distance += point_distance
         
-        #print(dist_speed,total_line_distance)
         if total_line_distance > dist_speed[-1]:
             speed_index = len(speed)-1
-            #print("LOOOOOONG")
         else:
             speed_index = next(x[0] for x in enumerate(dist_speed) if x[1] > total_line_distance)
 
@@ -209,7 +200,6 @@ def single_activity_speed():
             speed_new_range = len(list_colors)-1
         elif speed_new_range < 0:
             speed_new_range = 0
-        print(speed_new_range)
         folium.PolyLine((start_point, point), color=color_dict[round(speed_new_range)], weight = 5, control = False).add_to(speed_map)
 
         last_speed_index = speed_index
@@ -218,8 +208,6 @@ def single_activity_speed():
     return speed_map._repr_html_()
 
 def update_tokens():
-    print(current_user.token_expires)
-    print(time.time())
     if current_user.token_expires < time.time():
 
         print("INFO:\tTokens expired. Retreiving refreshed tokens")
@@ -256,7 +244,6 @@ def get_activity_streams(id, keys):
     url = url[:-1]
     print(url)
     r = requests.get(url, data = {"access_token":current_user.access_token})
-    #print(r.json())
     res = check_response(r)
     if res != 1:
         return res
@@ -271,7 +258,7 @@ def activities_on_map():
     ride_map = folium.FeatureGroup("Bike rides").add_to(folium_map)
     
     user_activities = Activity.query.filter_by(user_id=current_user.id).all()
-    #print(user_activities)
+
     for activity in user_activities:
         if activity.polyline == None:
             continue
