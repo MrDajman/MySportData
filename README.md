@@ -8,6 +8,9 @@ App to show heatmap of all the activities using Strava API
 ### Speed map of single activity
 ![Speedmap](Screenshot2.png)
 
+### Altitude map of single activity
+![Altitudemap](Screenshot3.png)
+
 ## How to use (local server)
 1. Copy the repository
 ```

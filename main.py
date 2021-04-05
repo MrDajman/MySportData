@@ -5,15 +5,16 @@ import time
 import polyline
 import numpy as np
 from flask import Flask, render_template, request, session, url_for, current_app, redirect, flash
+from flask_login import LoginManager, UserMixin, login_user, logout_user, current_user
+from flask_sqlalchemy import SQLAlchemy
 from rauth import OAuth2Service
 import folium
-from flask_login import LoginManager, UserMixin, login_user, logout_user,\
-    current_user
-from flask_sqlalchemy import SQLAlchemy
 from oauth import OAuthSignIn
 import datetime
 import geopy.distance
 import branca
+from branca.element import MacroElement
+from jinja2 import Template
 
 
 app = Flask(__name__)
@@ -63,7 +64,11 @@ list_colors = [
     "#FF1100",
     "#FF0000",
 ]
-color_dict = {i: list_colors[i] for i in range(len(list_colors))}
+
+
+
+
+
 
 class User(UserMixin, db.Model):
     __tablename__ = 'user'
@@ -78,10 +83,10 @@ class User(UserMixin, db.Model):
 class Activity(db.Model):
     __tablename__ = 'activity'
     id = db.Column(db.Integer, primary_key=True)
-    strava_id = db.Column(db.String(64), nullable=False, unique=True)
+    strava_id = db.Column(db.BigInteger, nullable=False, unique=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     name = db.Column(db.String(64), nullable=True)
-    distance = db.Column(db.Integer, nullable=True)
+    distance = db.Column(db.Float, nullable=True)
     sport = db.Column(db.String(64), nullable=False)
     date = db.Column(db.DateTime, nullable=False)
     polyline = db.Column(db.String(12000), nullable=True)
@@ -146,6 +151,24 @@ def oauth_callback(provider):
 
 @app.route('/sigle_activity_speed/', methods = ['POST'])
 def single_activity_speed():
+    class BindColorMap(MacroElement):
+        def __init__(self, layer, colormap):
+            super(BindColorMap, self).__init__()
+            self.layer = layer
+            self.colormap = colormap
+            self._template = Template(u"""
+            {% macro script(this, kwargs) %}
+                {{this.colormap.get_name()}}.svg[0][0].style.display = 'block';
+                {{this._parent.get_name()}}.on('overlayadd', function (eventLayer) {
+                    if (eventLayer.layer == {{this.layer.get_name()}}) {
+                        {{this.colormap.get_name()}}.svg[0][0].style.display = 'block';
+                    }});
+                {{this._parent.get_name()}}.on('overlayremove', function (eventLayer) {
+                    if (eventLayer.layer == {{this.layer.get_name()}}) {
+                        {{this.colormap.get_name()}}.svg[0][0].style.display = 'none';
+                    }});
+            {% endmacro %}
+            """)  # noqa
     start_coords = (48.855, 2.3433)
     
     activity_id = int(request.form['nm'])
@@ -154,31 +177,44 @@ def single_activity_speed():
     line = polyline.decode(activity.polyline)
     
 
-    streams = get_activity_streams(activity_id, ["velocity_smooth"])
+    streams = get_activity_streams(activity_id, ["velocity_smooth", "altitude"])
     speed = streams["velocity_smooth"]["data"]# in m/s
+    altitude = streams["altitude"]["data"]# in m/s
     dist_speed = streams["distance"]["data"]
 
-    max_speed = max(speed)
     color_dict = {i: list_colors[i] for i in range(len(list_colors))}
     start_point = line[0]
     total_line_distance = 0
-    last_speed_index = 0
+    last_stream_index = 0
     
     lon_max = (max(line,key=lambda item:item[1])[1])
     lat_max = (max(line,key=lambda item:item[0])[0])
     lon_min = (min(line,key=lambda item:item[1])[1])
     lat_min = (min(line,key=lambda item:item[0])[0])
     start_coords = (lat_min+(lat_max - lat_min)/2, lon_min+(lon_max - lon_min)/2)
-    speed_map = folium.Map(location=start_coords, zoom_start=13, tiles='cartodbpositron',width='100%', height='75%')
+    streams_map = folium.Map(location=start_coords, zoom_start=13, tiles='cartodbpositron',width='100%', height='75%', control_scale = True)
+
+    speed_map = folium.FeatureGroup("Speed")#.add_to(streams_map)
+    altitude_map = folium.FeatureGroup("Altitude", show = False)#.add_to(streams_map)
 
     speed_median = np.median(speed)*3.6
     color_margin = 5
-    #specify the min and max values of your data
+
+
+    altitude_max = max(altitude)
+    altitude_min = min(altitude)
+    # legend
     colormap = branca.colormap.LinearColormap([(0,255,0),(255,255,0),(255,0,0)])
     colormap = colormap.scale(speed_median-color_margin, speed_median+color_margin)
-    colormap = colormap.to_step(index=[speed_median-color_margin, speed_median-color_margin/2, speed_median, speed_median+color_margin/2, speed_median+color_margin])
+    colormap = colormap.to_step(10)
     colormap.caption = 'Speed (km/h)'
-    colormap.add_to(speed_map)
+    #colormap.add_to(streams_map)
+
+    colormap_altitude = branca.colormap.LinearColormap([(0,255,0),(255,255,0),(255,0,0)])
+    colormap_altitude = colormap_altitude.scale(altitude_min, altitude_max)
+    colormap_altitude = colormap_altitude.to_step(10)
+    colormap_altitude.caption = 'Altitude (m)'
+    #colormap_altitude.add_to(streams_map)
 
     for point in line[1:]:
 
@@ -186,26 +222,37 @@ def single_activity_speed():
         total_line_distance += point_distance
         
         if total_line_distance > dist_speed[-1]:
-            speed_index = len(speed)-1
+            stream_index = len(speed)-1
         else:
-            speed_index = next(x[0] for x in enumerate(dist_speed) if x[1] > total_line_distance)
+            stream_index = next(x[0] for x in enumerate(dist_speed) if x[1] > total_line_distance)
 
-        if last_speed_index == speed_index:
+        if last_stream_index == stream_index:
             segment_speed = 0
+            segment_altitude = speed[last_stream_index]
         else:
-            segment_speed = np.mean(speed[last_speed_index:speed_index])*3.6 # in km/h 
+            segment_speed = np.mean(speed[last_stream_index:stream_index])*3.6 # in km/h 
+            segment_altitude = np.mean(altitude[last_stream_index:stream_index]) 
 
         speed_new_range = (segment_speed - speed_median + color_margin) * (29/(2*color_margin))
+        altitude_new_range = (segment_altitude - altitude_min)*(29/(altitude_max-altitude_min))
         if speed_new_range > len(list_colors)-1:
             speed_new_range = len(list_colors)-1
+            altitude_new_range = len(list_colors)-1
         elif speed_new_range < 0:
             speed_new_range = 0
+            altitude_new_range = 0
         folium.PolyLine((start_point, point), color=color_dict[round(speed_new_range)], weight = 5, control = False).add_to(speed_map)
+        folium.PolyLine((start_point, point), color=color_dict[round(altitude_new_range)], weight = 5, control = False).add_to(altitude_map)
 
-        last_speed_index = speed_index
+        last_stream_index = stream_index
         start_point = point
+    streams_map.add_child(speed_map).add_child(altitude_map)
+    
+    streams_map.add_child(colormap).add_child(colormap_altitude)
+    streams_map.add_child(BindColorMap(speed_map,colormap)).add_child(BindColorMap(altitude_map,colormap_altitude))
+    folium.LayerControl(collapsed=False).add_to(streams_map)
 
-    return speed_map._repr_html_()
+    return streams_map._repr_html_()
 
 def update_tokens():
     if current_user.token_expires < time.time():
@@ -238,9 +285,11 @@ def get_activity_streams(id, keys):
 
     print("INFO:\tRetrieving athlete activities")
     url = "https://www.strava.com/api/v3/activities/{}/streams?".format(id)
+    url += "keys="
     for key in keys:
-        url += "keys={}&".format(key)
-    url += "key_by_type=1&"
+        url += "{},".format(key)
+    url = url[:-1]
+    url += "&key_by_type=1&"
     url = url[:-1]
     print(url)
     r = requests.get(url, data = {"access_token":current_user.access_token})
@@ -313,10 +362,8 @@ def update_activities_db():
             activities_list = get_my_activities(per_page=200, page = page)
         except TypeError:
             break
-        
         try:
             if len(activities_list) == 0:
-                
                 break
         except TypeError:
             try:
