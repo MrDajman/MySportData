@@ -49,7 +49,6 @@ class StravaSignIn(OAuthSignIn):
         return redirect(self.service.get_authorize_url(
             scope='profile:read_all,activity:read_all',
             response_type='code',
-            #redirect_uri=http://localhost/exchange_token
             approval_prompt = 'force',
             redirect_uri=self.get_callback_url())
         )
@@ -70,23 +69,9 @@ class StravaSignIn(OAuthSignIn):
 
         response = requests.post(url = 'https://www.strava.com/oauth/token',data = payload)
         print(response.json())
-        #check_response(response)
         #Save json response as a variable
         strava_tokens = response.json()
 
-        '''
-        oauth_session = self.service.get_auth_session(
-            data={
-                  'client_id': "63388",
-                  'client_secret': 'cd53d9a8623c88f85fe7f59ca0c4e9a4e6c2ac5f',
-                  'code': request.args['code'],
-                  'grant_type': 'authorization_code',
-                  'redirect_uri': self.get_callback_url()},
-            decoder=decode_json
-        )
-        me = oauth_session.get("").json()
-        print("ME:",me)
-        '''
         return (
             'strava$'
             + str(strava_tokens["athlete"]["id"]),
@@ -97,11 +82,3 @@ class StravaSignIn(OAuthSignIn):
             strava_tokens["access_token"],
             strava_tokens['expires_at']
         )
-
-'''
- + me['id'],
-            me.get('email').split('@')[0],  # Facebook does not provide
-                                            # username, so the email's user
-                                            # is used instead
-            me.get('email')
-            '''
