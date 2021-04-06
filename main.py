@@ -4,7 +4,7 @@ import os
 import time
 import polyline
 import numpy as np
-from flask import Flask, render_template, request, session, url_for, current_app, redirect, flash
+from flask import Flask, render_template, request, session, url_for, current_app, redirect, flash, Response
 from flask_login import LoginManager, UserMixin, login_user, logout_user, current_user
 from flask_sqlalchemy import SQLAlchemy
 from rauth import OAuth2Service
@@ -15,6 +15,8 @@ import geopy.distance
 import branca
 from branca.element import MacroElement
 from jinja2 import Template
+import threading
+import random
 
 
 app = Flask(__name__)
@@ -30,7 +32,7 @@ app.config['OAUTH_CREDENTIALS'] = {
 db = SQLAlchemy(app)
 lm = LoginManager(app)
 lm.login_view = 'index'
-
+exporting_threads = {}
 
 list_colors = [
     "#00FF00",
@@ -65,8 +67,67 @@ list_colors = [
     "#FF0000",
 ]
 
+@app.route('/update_activities/')
+def update_activities_db():
+	return render_template('progress_test.html')
 
+@app.route('/progress/<user_id>')
+def progress(user_id):
+    print(current_user.id)
+    def generate(user_id):
+        print(user_id)
+        current_user = User.query.filter_by(id = user_id).first()
+        print(current_user)
+        print(current_user.id)
+        page = 1
+        count_total = 0
+        count_new = 0
+        error_out = ""
+        while(1):
+            try:
+                activities_list = get_my_activities(per_page=200, page = page)
+            except TypeError:
+                break
+            try:
+                if len(activities_list) == 0:
+                    break
+            except TypeError:
+                try:
+                    if activities_list == 2:
+                        error_out += "Wait 15 minutes for the query limit to Reset"
+                except:
+                    pass
+                break
+            if activities_list == 0:
+                return 0
 
+            for act in activities_list:
+                activity = Activity.query.filter_by(strava_id = act["id"]).first()
+                if not activity:
+                    try:
+                        strava_id, user_id, name, distance, sport, date, polyline = single_activity_callback(act["id"])
+                    except TypeError:
+                        break
+                    
+                    date_date = date.split("T")[0].split("-")
+                    date_time = date.split("T")[1][:-1].split(":")
+                    activity = Activity(strava_id=strava_id,
+                                        user_id=user_id,
+                                        name = name,
+                                        distance = distance,
+                                        sport = sport,
+                                        date = datetime.datetime(int(date_date[0]),int(date_date[1]),int(date_date[2]),int(date_time[0]),int(date_time[1]),int(date_time[2])),
+                                        polyline = polyline)
+                    db.session.add(activity)
+                    db.session.commit()
+                    count_new += 1
+                else:
+                    print("INFO:\tActivity already in db")
+                count_total +=1
+                yield "data:" + str(count_total) + "\n\n"
+            page += 1
+    
+    return Response(generate(user_id), mimetype= 'text/event-stream')
 
 
 
@@ -263,7 +324,7 @@ def update_tokens():
                 'client_id': "63388",
                 'client_secret': 'cd53d9a8623c88f85fe7f59ca0c4e9a4e6c2ac5f',
                 'grant_type': 'refresh_token',
-                'refresh_token': current_uscommier.refresh_token
+                'refresh_token': current_user.refresh_token
                 }
 
         response = requests.post(url = 'https://www.strava.com/oauth/token',data = payload)
@@ -351,8 +412,8 @@ def get_my_activities(before = False, after = False, page = False, per_page = Fa
         return res
     return r.json()
 
-@app.route('/update_activities/')
-def update_activities_db():
+@app.route('/update_activities2/')
+def update_activities_db2():
     page = 1
     count_total = 0
     count_new = 0
