@@ -4,7 +4,7 @@ import os
 import time
 import polyline
 import numpy as np
-from flask import Flask, render_template, request, session, url_for, current_app, redirect, flash
+from flask import Flask, render_template, request, session, url_for, current_app, redirect, flash, Response
 from flask_login import LoginManager, UserMixin, login_user, logout_user, current_user
 from flask_sqlalchemy import SQLAlchemy
 from rauth import OAuth2Service
@@ -15,6 +15,9 @@ import geopy.distance
 import branca
 from branca.element import MacroElement
 from jinja2 import Template
+import threading
+import random
+from threading import Thread
 
 
 app = Flask(__name__)
@@ -30,7 +33,7 @@ app.config['OAUTH_CREDENTIALS'] = {
 db = SQLAlchemy(app)
 lm = LoginManager(app)
 lm.login_view = 'index'
-
+exporting_threads = {}
 
 list_colors = [
     "#00FF00",
@@ -65,10 +68,36 @@ list_colors = [
     "#FF0000",
 ]
 
+@app.route('/update_activities/')
+def progress_test():
+    run_func(current_user.id)
+    return render_template('progress_test.html')
+
+@app.route('/progress')
+def progress():
+    def generate(id):
+        x = 0
+
+        while x <= 100:
+            x = User.query.filter_by(id = id).first().progress_counter
+            print(x)
+            yield "data:" + str(x) + "\n\n"
+            time.sleep(0.5)
+            
+    return Response(generate(current_user.id), mimetype= 'text/event-stream')
 
 
+@app.route('/run-in-background')
+def run_in_background():
+    print(current_user)
+    run_func(current_user.id)
+    return render_template('progress_test.html')
 
-
+def run_func(user_id):
+    data = { 'some': 'data', 'any': 'data' }
+    thr = Thread(target=update_activities_db3, args=[user_id])
+    thr.start()
+    return thr
 
 class User(UserMixin, db.Model):
     __tablename__ = 'user'
@@ -79,6 +108,7 @@ class User(UserMixin, db.Model):
     refresh_token = db.Column(db.String(64), nullable=False)
     access_token = db.Column(db.String(64), nullable=False)
     token_expires = db.Column(db.Integer, nullable=False)
+    progress_counter = db.Column(db.Integer, nullable = True)
 
 class Activity(db.Model):
     __tablename__ = 'activity'
@@ -136,7 +166,8 @@ def oauth_callback(provider):
             fullname=str(firstname + " " + lastname), 
             refresh_token = refresh_token, 
             access_token = access_token, 
-            token_expires = token_expires)
+            token_expires = token_expires, 
+            progress_counter = 0)
         db.session.add(user)
         db.session.commit()
     else:
@@ -254,7 +285,7 @@ def single_activity_speed():
 
     return streams_map._repr_html_()
 
-def update_tokens():
+def update_tokens(current_user):
     if current_user.token_expires < time.time():
 
         print("INFO:\tTokens expired. Retreiving refreshed tokens")
@@ -263,7 +294,7 @@ def update_tokens():
                 'client_id': "63388",
                 'client_secret': 'cd53d9a8623c88f85fe7f59ca0c4e9a4e6c2ac5f',
                 'grant_type': 'refresh_token',
-                'refresh_token': current_uscommier.refresh_token
+                'refresh_token': current_user.refresh_token
                 }
 
         response = requests.post(url = 'https://www.strava.com/oauth/token',data = payload)
@@ -281,7 +312,7 @@ def update_tokens():
 
 def get_activity_streams(id, keys):
 
-    update_tokens()
+    update_tokens(current_user)
 
     print("INFO:\tRetrieving athlete activities")
     url = "https://www.strava.com/api/v3/activities/{}/streams?".format(id)
@@ -335,8 +366,8 @@ def activities_on_map():
     return folium_map._repr_html_()
 
 
-def get_my_activities(before = False, after = False, page = False, per_page = False):
-    update_tokens()
+def get_my_activities(current_user,before = False, after = False, page = False, per_page = False):
+    update_tokens(current_user)
     print("INFO:\tRetrieving athlete activities")
     url = "https://www.strava.com/api/v3/activities?"
     if page:
@@ -351,15 +382,20 @@ def get_my_activities(before = False, after = False, page = False, per_page = Fa
         return res
     return r.json()
 
-@app.route('/update_activities/')
-def update_activities_db():
+def update_activities_db3(user_id, nb_to_retrieve = 75):
+    current_user = User.query.filter_by(id = user_id).first()
+    
+    current_user.progress_counter = 0
+    db.session.commit()
+
+    print(current_user)
     page = 1
     count_total = 0
     count_new = 0
     error_out = ""
     while(1):
         try:
-            activities_list = get_my_activities(per_page=200, page = page)
+            activities_list = get_my_activities(current_user,per_page=200, page = page)
         except TypeError:
             break
         try:
@@ -379,7 +415,7 @@ def update_activities_db():
             activity = Activity.query.filter_by(strava_id = act["id"]).first()
             if not activity:
                 try:
-                    strava_id, user_id, name, distance, sport, date, polyline = single_activity_callback(act["id"])
+                    strava_id, user_id, name, distance, sport, date, polyline = single_activity_callback(current_user,act["id"])
                 except TypeError:
                     break
                 
@@ -395,16 +431,23 @@ def update_activities_db():
                 db.session.add(activity)
                 db.session.commit()
                 count_new += 1
+                print(current_user.id)
+                current_user.progress_counter = int((count_new/nb_to_retrieve)*100)
+                db.session.commit()
+                if count_new > nb_to_retrieve:
+                    break
             else:
                 print("INFO:\tActivity already in db")
             count_total +=1
+            if count_new > nb_to_retrieve:
+                break
         page += 1
 
-    return render_template("update_db.html", error_out = error_out, count_new = count_new, count_total = count_total)
+    return 0
 
 
-def single_activity_callback(id):
-        update_tokens()
+def single_activity_callback(current_user, id):
+        update_tokens(current_user)
         print("INFO:\tRetrieving activity ID: {}".format(id))
         url = "https://www.strava.com/api/v3/activities/{}?".format(id)
         r = requests.get(url, data = {"access_token":current_user.access_token})
@@ -420,7 +463,6 @@ def single_activity_callback(id):
 
         else:
             return False
-
 
 
 def check_response(response):
