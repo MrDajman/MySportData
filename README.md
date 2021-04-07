@@ -1,6 +1,6 @@
 # MySportData
 
-App to show heatmap of all the activities using Strava API
+App to show interactive heatmap of all the activities using Strava API
 
 ### Map of all the activities
 ![Heatmap](Screenshot.png)
@@ -33,16 +33,16 @@ python main.py
 - Storing activities in the database
 - **Interactive map with all the activities**
 - **Interactive map with color trail for the speed of an activity**
+- Progress bar for retrieving the activities
 
 
 ## To Do
-- Refreshing tokens when 
-- Last complete update
-- Extra functionality (single activity map)
-- Snap activity tracks to the roads
+- Manage the exceptions (invalid tokens; api small limit; api big limit?)
+- Stop thread when leaving the website
+- Last complete update (User table variable)
 
-## Done
-- Authorizing Strava via website
+## Ideas for future development
+- Snap activity tracks to the roads
 
 ## Resources
 - Strava API

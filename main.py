@@ -18,7 +18,7 @@ from jinja2 import Template
 import threading
 import random
 from threading import Thread
-
+#Set-ExecutionPolicy Unrestricted -Scope Process
 
 app = Flask(__name__)
 app.secret_key = "hello"
@@ -204,6 +204,13 @@ def single_activity_speed():
     
 
     streams = get_activity_streams(activity_id, ["velocity_smooth", "altitude"])
+    
+    try:
+        if streams == 2:
+            return("pickle")
+    except:
+        pass
+    
     speed = streams["velocity_smooth"]["data"]# in m/s
     altitude = streams["altitude"]["data"]# in m/s
     dist_speed = streams["distance"]["data"]
@@ -317,7 +324,6 @@ def get_activity_streams(id, keys):
     url = url[:-1]
     url += "&key_by_type=1&"
     url = url[:-1]
-    print(url)
     r = requests.get(url, data = {"access_token":current_user.access_token})
     res = check_response(r)
     if res != 1:
@@ -370,7 +376,7 @@ def get_my_activities(current_user,before = False, after = False, page = False, 
     if per_page:
         url += "per_page={}&".format(per_page)
     url = url[:-1]
-    print(url)
+    #print(url)
     r = requests.get(url, data = {"access_token":current_user.access_token})
     res = check_response(r)
     if res != 1:
@@ -399,6 +405,9 @@ def update_activities_db3(user_id, nb_to_retrieve = 75):
             try:
                 if activities_list == 2:
                     error_out += "Wait 15 minutes for the query limit to Reset"
+                current_user.progress_counter = -1
+                db.session.commit()
+                break
             except:
                 pass
             break
@@ -425,7 +434,6 @@ def update_activities_db3(user_id, nb_to_retrieve = 75):
                 db.session.add(activity)
                 db.session.commit()
                 count_new += 1
-                print(current_user.id)
                 current_user.progress_counter = int((count_new/nb_to_retrieve)*100)
                 db.session.commit()
                 if count_new > nb_to_retrieve:
