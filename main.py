@@ -70,8 +70,10 @@ list_colors = [
 
 @app.route('/update_activities/')
 def progress_test():
+    # function ran in background
+    acts_count = len(Activity.query.filter_by(user_id = current_user.id).all())
     run_func(current_user.id)
-    return render_template('progress_test.html')
+    return render_template('progress_test.html', activity_count = acts_count)
 
 @app.route('/progress')
 def progress():
@@ -80,18 +82,11 @@ def progress():
 
         while x <= 100:
             x = User.query.filter_by(id = id).first().progress_counter
-            print(x)
             yield "data:" + str(x) + "\n\n"
             time.sleep(0.5)
             
     return Response(generate(current_user.id), mimetype= 'text/event-stream')
 
-
-@app.route('/run-in-background')
-def run_in_background():
-    print(current_user)
-    run_func(current_user.id)
-    return render_template('progress_test.html')
 
 def run_func(user_id):
     data = { 'some': 'data', 'any': 'data' }
@@ -388,7 +383,6 @@ def update_activities_db3(user_id, nb_to_retrieve = 75):
     current_user.progress_counter = 0
     db.session.commit()
 
-    print(current_user)
     page = 1
     count_total = 0
     count_new = 0
