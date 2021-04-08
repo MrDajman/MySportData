@@ -124,6 +124,14 @@ def load_user(id):
 
 @app.route('/')
 def index():
+    update_tokens(current_user)
+    print(current_user.social_id)
+    url = "https://www.strava.com/api/v3/athletes/{}/stats".format(current_user.social_id.split("$")[1])
+    print(url)
+    r = requests.get(url, data = {"access_token":current_user.access_token})
+    res = check_response(r)
+    print(r.json())
+    
     return render_template('index.html')
 
 
