@@ -8,6 +8,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.12.9/umd/popper.min.js" integrity="sha384-ApNbgh9B+Y1QKtv3Rn7W3mgPxhU9K/ScQsAP7hUibX39j7fakFPskvXusvfa0b4Q" crossorigin="anonymous"></script>
     <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js" integrity="sha384-JZR6Spejh4U02d8jOt6vLEHfe/JQGiRRSQQxSfFWpi1MquVdAyjUar5+76PVCmYl" crossorigin="anonymous"></script>
     <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css" integrity="sha384-Gn5384xqQ1aoWXA+058RXPxPg6fy4IWvTNh0E263XmFcJlSAwiGgFAW/dAiS6JXm" crossorigin="anonymous">
+    <!-- Custom styles for this template -->
     {% block head %}{% endblock %}
 
     <style>
@@ -15,6 +16,21 @@
           max-width: 600px;
           margin: auto;
           text-align: center;
+        }
+        html {
+        position: relative;
+        min-height: 100%;
+        }
+        body {
+        margin-bottom: 60px; /* Margin bottom by footer height */
+        }
+        .footer {
+        position: absolute;
+        bottom: 0;
+        width: 100%;
+        height: 60px; /* Set the fixed height of the footer here */
+        line-height: 60px; /* Vertically center the text there */
+        background-color: #f5f5f5;
         }
     </style>
 </head>
@@ -40,7 +56,7 @@
         
         {% else %}
             <li class="nav-item">
-                <a class="nav-link" href="{{ url_for('oauth_authorize', provider='strava') }}"><img src=btn_strava_connectwith_light.png/></a>
+                <a class="nav-link" href="{{ url_for('oauth_authorize', provider='strava') }}"><img src="https://github.com/MrDajman/MySportData/blob/main/imgstyle/btn_strava_connectwith_light.png?raw=true" height="40px"/></a>
             </li>
         {% endif %}
 
@@ -57,5 +73,13 @@
     </form>
     </div>
 
+
+
+
+  <footer class="footer">
+    <div class="container">
+      <span class="text-muted">Damian Janikowski © 2021; <img src="https://github.com/MrDajman/MySportData/blob/main/imgstyle/btn_strava_connectwith_light.png?raw=true" height="40px"/></span>
+    </div>
+  </footer>
 </body>
 </html>
