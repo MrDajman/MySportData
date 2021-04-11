@@ -1,0 +1,26 @@
+{% extends 'base.html' %}
+
+{% block head %}
+
+<title>Activities Heatmap - Home Page</title>
+<style>
+.map-folium {
+    padding-bottom:calc(100vh - 116px);
+    position:relative;
+    width:100%;
+    height:0;
+  }
+</style>
+{% endblock %}
+
+{% block body %}
+
+    {% if current_user.is_authenticated %}
+    
+    <div style="width:100%;"><div class="map-folium">
+        {{ map|safe }}
+
+    {% else %}
+    {% endif %}
+
+{% endblock %}

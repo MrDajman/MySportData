@@ -37,7 +37,7 @@ python main.py
 
 
 ## To Do
-- Manage the exceptions (invalid tokens; api small limit; api big limit?)
+- Manage the exceptions (api small limit; api big limit?)
 - Stop thread when leaving the website
 - Last complete update (User table variable)
 

@@ -237,7 +237,7 @@ def single_activity_speed():
     lon_min = (min(line,key=lambda item:item[1])[1])
     lat_min = (min(line,key=lambda item:item[0])[0])
     start_coords = (lat_min+(lat_max - lat_min)/2, lon_min+(lon_max - lon_min)/2)
-    streams_map = folium.Map(location=start_coords, zoom_start=13, tiles='cartodbpositron',width='100%', height='75%', control_scale = True)
+    streams_map = folium.Map(location=start_coords, zoom_start=13, tiles='cartodbpositron', control_scale = True)
 
     speed_map = folium.FeatureGroup("Speed")#.add_to(streams_map)
     altitude_map = folium.FeatureGroup("Altitude", show = False)#.add_to(streams_map)
@@ -297,7 +297,9 @@ def single_activity_speed():
     streams_map.add_child(BindColorMap(speed_map,colormap)).add_child(BindColorMap(altitude_map,colormap_altitude))
     folium.LayerControl(collapsed=False).add_to(streams_map)
 
-    return streams_map._repr_html_()
+    streams_map_div = streams_map._repr_html_()
+
+    return render_template('heatmap.html', map=streams_map_div[96:])
 
 def update_tokens(current_user):
     if current_user.token_expires < time.time():
@@ -345,7 +347,7 @@ def get_activity_streams(id, keys):
 @app.route('/activities_on_map/')
 def activities_on_map():
     start_coords = (48.855, 2.3433)
-    folium_map = folium.Map(location=start_coords, zoom_start=13, tiles='cartodbpositron')
+    folium_map = folium.Map(location=start_coords, zoom_start=13, tiles='cartodbpositron', height="100%")
     
     run_map = folium.FeatureGroup("Runs").add_to(folium_map)
     ride_map = folium.FeatureGroup("Bike rides").add_to(folium_map)
@@ -360,12 +362,12 @@ def activities_on_map():
             continue
 
         end_point_address = url_for('single_activity_speed')
-        popup_html = """<p>Distance: {}</p>
+        popup_html = """<p>Distance: {} km</p>
             <p>Date: {}</p>
             <form action = "{}" target="_blank" method = "post">
-            <p><input type="hidden" id="postId" name="nm" value={}></p>
-            <p><input type = "submit" value = "Show speed map" /></p>
-            </form>""".format(activity.distance, activity.date, end_point_address, activity.strava_id)
+                <p><input type="hidden" id="postId" name="nm" value={}></p>
+                <input type="submit" class="btn btn-primary" value="Show speed map"/>
+            </form>""".format(round(activity.distance/1000,2), activity.date.date(), end_point_address, activity.strava_id)
         
         if activity.sport in ["Run","Walk"]:
             folium.PolyLine(line, color = "#FF0000", opacity = 0.3, control = False, popup = popup_html).add_to(run_map)
@@ -376,7 +378,12 @@ def activities_on_map():
 
     folium.LayerControl(collapsed=False).add_to(folium_map)
 
-    return folium_map._repr_html_()
+    heatmap_div = folium_map._repr_html_()
+    #f = open("demofile2.html", "w")
+    #f.write(heatmap_div)
+    #f.close()
+
+    return render_template("heatmap.html", map=heatmap_div[96:])
 
 
 def get_my_activities(current_user,before = False, after = False, page = False, per_page = False):
@@ -395,7 +402,7 @@ def get_my_activities(current_user,before = False, after = False, page = False, 
         return res
     return r.json()
 
-def update_activities_db3(user_id, nb_to_retrieve = 50):
+def update_activities_db3(user_id, nb_to_retrieve = 25):
     # necessary for progress bar to be working
     current_user = User.query.filter_by(id = user_id).first()
 
