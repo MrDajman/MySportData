@@ -69,11 +69,21 @@ list_colors = [
 ]
 
 @app.route('/update_activities/')
-def progress_test():
+def update_activities():
     # function ran in background
     acts_count = len(Activity.query.filter_by(user_id = current_user.id).all())
     run_func(current_user.id)
-    return render_template('progress_test.html', activity_count = acts_count)
+    
+    update_tokens(current_user)
+    url = "https://www.strava.com/api/v3/athletes/{}/stats".format(current_user.social_id.split("$")[1])
+    r = requests.get(url, data = {"access_token":current_user.access_token})
+    res = check_response(r)
+    rides_strava_count = r.json()["all_ride_totals"]["count"]
+    runs_strava_count = r.json()["all_run_totals"]["count"]
+
+    total_strava_activities = rides_strava_count + runs_strava_count    
+
+    return render_template('update_activities.html', activity_count = acts_count, total_strava = total_strava_activities)
 
 @app.route('/progress')
 def progress():
@@ -124,14 +134,7 @@ def load_user(id):
 
 @app.route('/')
 def index():
-    update_tokens(current_user)
-    print(current_user.social_id)
-    url = "https://www.strava.com/api/v3/athletes/{}/stats".format(current_user.social_id.split("$")[1])
-    print(url)
-    r = requests.get(url, data = {"access_token":current_user.access_token})
-    res = check_response(r)
-    print(r.json())
-    
+
     return render_template('index.html')
 
 
@@ -215,7 +218,8 @@ def single_activity_speed():
     
     try:
         if streams == 2:
-            return("pickle")
+            return """<script> window.alert("Limit of Strava API is exceeded. Try again in "+ wait_time.toString() + " minutes"); </script>"""
+           # return("pickle")
     except:
         pass
     
@@ -391,9 +395,10 @@ def get_my_activities(current_user,before = False, after = False, page = False, 
         return res
     return r.json()
 
-def update_activities_db3(user_id, nb_to_retrieve = 75):
+def update_activities_db3(user_id, nb_to_retrieve = 50):
+    # necessary for progress bar to be working
     current_user = User.query.filter_by(id = user_id).first()
-    
+
     current_user.progress_counter = 0
     db.session.commit()
 
@@ -452,8 +457,12 @@ def update_activities_db3(user_id, nb_to_retrieve = 75):
             if count_new > nb_to_retrieve:
                 break
         page += 1
-
-    return 0
+    if count_new < nb_to_retrieve:
+        current_user.progress_counter = -2
+        db.session.commit()
+        return 1
+    else:
+        return 0
 
 
 def single_activity_callback(current_user, id):
