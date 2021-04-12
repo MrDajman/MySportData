@@ -1,0 +1,23 @@
+{% extends 'base.html' %}
+
+{% block head %}
+
+<title>Error</title>
+
+{% endblock %}
+
+{% block body %}
+
+    <h2>Error</h2>
+
+    <br>
+    {% if error_nb==2 %}
+    <p>The query limit of Strava API has been reached. You need to wait ~15min for the limit to renew</p>
+    {% else %}
+    {% endif %}
+
+    {% if current_user.is_authenticated %}
+    {% else %}
+    {% endif %}
+
+{% endblock %}

@@ -78,6 +78,8 @@ def update_activities():
     url = "https://www.strava.com/api/v3/athletes/{}/stats".format(current_user.social_id.split("$")[1])
     r = requests.get(url, data = {"access_token":current_user.access_token})
     res = check_response(r)
+    if res != 1:
+        return render_template("error_page.html", error_nb = res)
     rides_strava_count = r.json()["all_ride_totals"]["count"]
     runs_strava_count = r.json()["all_run_totals"]["count"]
 
@@ -218,8 +220,8 @@ def single_activity_speed():
     
     try:
         if streams == 2:
-            return """<script> window.alert("Limit of Strava API is exceeded. Try again in "+ wait_time.toString() + " minutes"); </script>"""
-           # return("pickle")
+            #return """<script> window.alert("Limit of Strava API is exceeded. Try again in "+ wait_time.toString() + " minutes"); </script>"""
+            return render_template("error_page.html", error_nb = streams)
     except:
         pass
     
