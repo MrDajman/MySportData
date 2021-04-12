@@ -353,10 +353,15 @@ def get_activity_streams(id, keys):
 @app.route('/activities_on_map/')
 def activities_on_map():
     start_coords = (48.855, 2.3433)
-    folium_map = folium.Map(location=start_coords, zoom_start=13, tiles='cartodbpositron', height="100%")
+    lon_Max = -200
+    lat_Max = -200
+    lon_Min = 200
+    lat_Min = 200
+
+    start_points = []
     
-    run_map = folium.FeatureGroup("Runs").add_to(folium_map)
-    ride_map = folium.FeatureGroup("Bike rides").add_to(folium_map)
+    run_map = folium.FeatureGroup("Runs")
+    ride_map = folium.FeatureGroup("Bike rides")
     
     user_activities = Activity.query.filter_by(user_id=current_user.id).all()
 
@@ -381,7 +386,23 @@ def activities_on_map():
         elif activity.sport in ["Ride"]:
             folium.PolyLine(line, color = "#0000FF", opacity = 0.3, control = False, popup = popup_html).add_to(ride_map)
             pass
+        else:
+            continue
+        
+        start_points.append(line[0])
 
+    start_lat = [list(x)[0] for x in start_points]
+    start_lon = [list(x)[1] for x in start_points]
+    start_lat.sort()
+    start_lon.sort()
+    #zoom_map = round(-3.8472*max(map_width,map_height) + 13.317)
+    zoom_map = 12
+    start_coords = (np.median(start_lat), np.median(start_lon))
+    
+    
+    folium_map = folium.Map(location=start_coords, zoom_start=zoom_map, tiles='cartodbpositron', height="100%")
+    folium_map.add_child(run_map)
+    folium_map.add_child(ride_map)
     folium.LayerControl(collapsed=False).add_to(folium_map)
 
     heatmap_div = folium_map._repr_html_()
