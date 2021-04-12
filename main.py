@@ -238,8 +238,12 @@ def single_activity_speed():
     lat_max = (max(line,key=lambda item:item[0])[0])
     lon_min = (min(line,key=lambda item:item[1])[1])
     lat_min = (min(line,key=lambda item:item[0])[0])
+    map_width = lon_max - lon_min
+    map_height = lat_max - lat_min
+    zoom_streams = round(-3.8472*max(map_width,map_height) + 13.317)
+
     start_coords = (lat_min+(lat_max - lat_min)/2, lon_min+(lon_max - lon_min)/2)
-    streams_map = folium.Map(location=start_coords, zoom_start=13, tiles='cartodbpositron', control_scale = True)
+    streams_map = folium.Map(location=start_coords, zoom_start=zoom_streams, tiles='cartodbpositron', control_scale = True)
 
     speed_map = folium.FeatureGroup("Speed")#.add_to(streams_map)
     altitude_map = folium.FeatureGroup("Altitude", show = False)#.add_to(streams_map)
