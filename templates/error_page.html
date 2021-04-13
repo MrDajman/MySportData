@@ -16,6 +16,15 @@
     {% else %}
     {% endif %}
 
+    
+    {% if error_nb==7 %}
+    <p>No activities has been retrieved from Strava yet. Update your database</p>
+    <form action="{{ url_for('update_activities') }}">
+        <input type="submit" class="btn btn-outline-primary" value="Update activities database"/>
+    </form>
+    {% else %}
+    {% endif %}
+
     {% if current_user.is_authenticated %}
     {% else %}
     {% endif %}

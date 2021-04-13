@@ -26,6 +26,10 @@
     </form>
 
     {% else %}
+    <div class="content">
+        <h3>Log in with Strava to continue</h3>
+    <a class="nav-link" href="{{ url_for('oauth_authorize', provider='strava') }}"><img src="https://github.com/MrDajman/MySportData/blob/main/imgstyle/btn_strava_connectwith_light.png?raw=true" height="80px"/></a>
+    </div>
     {% endif %}
 
 {% endblock %}

@@ -364,7 +364,8 @@ def activities_on_map():
     ride_map = folium.FeatureGroup("Bike rides")
     
     user_activities = Activity.query.filter_by(user_id=current_user.id).all()
-
+    if len(user_activities) == 0:
+        return render_template("error_page.html", error_nb = 7)
     for activity in user_activities:
         if activity.polyline == None:
             continue
@@ -393,9 +394,11 @@ def activities_on_map():
 
     start_lat = [list(x)[0] for x in start_points]
     start_lon = [list(x)[1] for x in start_points]
+    
+    if len(start_lat) == 0:
+        return render_template("error_page.html", error_nb = 7)
     start_lat.sort()
     start_lon.sort()
-    #zoom_map = round(-3.8472*max(map_width,map_height) + 13.317)
     zoom_map = 12
     start_coords = (np.median(start_lat), np.median(start_lon))
     
@@ -406,11 +409,9 @@ def activities_on_map():
     folium.LayerControl(collapsed=False).add_to(folium_map)
 
     heatmap_div = folium_map._repr_html_()
-    #f = open("demofile2.html", "w")
-    #f.write(heatmap_div)
-    #f.close()
 
     return render_template("heatmap.html", map=heatmap_div[96:])
+
 
 
 def get_my_activities(current_user,before = False, after = False, page = False, per_page = False):

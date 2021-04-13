@@ -48,6 +48,12 @@
 		</div>
 	</div>
 
+	<div class="content">
+		<form action="{{ url_for('activities_on_map') }}">
+			<input type="submit" class="btn btn-primary btn-lg" value="Heatmap"/>
+		</form>
+	</div>
+
     {% else %}
     {% endif %}
 

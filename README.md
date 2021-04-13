@@ -37,7 +37,6 @@ python main.py
 
 
 ## To Do
-- Manage the exceptions (api small limit; api big limit?)
 - Stop thread when leaving the website
 - Last complete update (User table variable)
 
@@ -49,3 +48,6 @@ python main.py
 - Flask, flask_sqlachemy
 - OpenStreetMap
 - Folium
+
+## Demo 
+App deployed on Heroku: https://mysportapp.herokuapp.com/
