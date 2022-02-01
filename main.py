@@ -360,8 +360,9 @@ def activities_on_map():
 
     start_points = []
     
-    run_map = folium.FeatureGroup("Runs")
-    ride_map = folium.FeatureGroup("Bike rides")
+    run_map = folium.FeatureGroup("""<p style="color:red; display:inline-block;">Runs</p>""")
+    ride_map = folium.FeatureGroup("""<p style="color:blue; display:inline-block;">Bike rides</p>""")
+    others_map = folium.FeatureGroup("""<p style="color:green; display:inline-block;">Others</p>""")
     
     user_activities = Activity.query.filter_by(user_id=current_user.id).all()
     if len(user_activities) == 0:
@@ -387,6 +388,9 @@ def activities_on_map():
         elif activity.sport in ["Ride"]:
             folium.PolyLine(line, color = "#0000FF", opacity = 0.3, control = False, popup = popup_html).add_to(ride_map)
             pass
+        elif activity.sport in ["Walk","Hike","Snowshoe"]:
+            folium.PolyLine(line, color = "#0FFF00", opacity = 0.3, control = False, popup = popup_html).add_to(others_map)
+            pass
         else:
             continue
         
@@ -406,6 +410,7 @@ def activities_on_map():
     folium_map = folium.Map(location=start_coords, zoom_start=zoom_map, tiles='cartodbpositron', height="100%")
     folium_map.add_child(run_map)
     folium_map.add_child(ride_map)
+    folium_map.add_child(others_map)
     folium.LayerControl(collapsed=False).add_to(folium_map)
 
     heatmap_div = folium_map._repr_html_()
@@ -487,6 +492,11 @@ def update_activities_db3(user_id, nb_to_retrieve = 25):
                 if count_new > nb_to_retrieve:
                     break
             else:
+                # try:
+                #     strava_id, user_id, name, distance, sport, date, polyline = single_activity_callback(current_user,act["id"])
+                # except TypeError:
+                #     break
+                # print(sport)
                 print("INFO:\tActivity already in db")
             count_total +=1
             if count_new > nb_to_retrieve:
@@ -507,6 +517,7 @@ def single_activity_callback(current_user, id):
         r = requests.get(url, data = {"access_token":current_user.access_token})
         res = check_response(r)
         if res == 1:
+            print(r.json()["type"])
             return (r.json()["id"],
                 current_user.id,
                 r.json()["name"],

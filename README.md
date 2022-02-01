@@ -39,6 +39,7 @@ python main.py
 ## To Do
 - Stop thread when leaving the website
 - Last complete update (User table variable)
+- Focus map on the last activity
 
 ## Ideas for future development
 - Snap activity tracks to the roads
